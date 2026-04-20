@@ -98,12 +98,20 @@ const StateNode = ({ data, id }: { data: StateNodeData, id: string }) => {
            ➜
         </div>
       )}
+      <div className="text-zinc-800">{data.label}</div>
+      
+      {/* 4-Way Handles for clean arrow routing */}
+      <Handle type="target" position={Position.Top} id="target-top" style={{ opacity: 0 }} />
+      <Handle type="target" position={Position.Bottom} id="target-bottom" style={{ opacity: 0 }} />
+      <Handle type="target" position={Position.Left} id="target-left" style={{ opacity: 0 }} />
+      <Handle type="target" position={Position.Right} id="target-right" style={{ opacity: 0 }} />
+      
+      <Handle type="source" position={Position.Top} id="source-top" style={{ opacity: 0 }} />
+      <Handle type="source" position={Position.Bottom} id="source-bottom" style={{ opacity: 0 }} />
+      <Handle type="source" position={Position.Left} id="source-left" style={{ opacity: 0 }} />
+      <Handle type="source" position={Position.Right} id="source-right" style={{ opacity: 0 }} />
       
       <span className="z-10">{id}</span>
-
-      {/* Luxury Gold Handles */}
-      <Handle type="target" position={Position.Top} id="target-top" style={{ background: '#c5a028', border: 'none', width: 6, height: 6 }} />
-      <Handle type="source" position={Position.Top} id="source-top" style={{ background: '#c5a028', border: 'none', width: 6, height: 6 }} />
       
       <Handle type="target" position={Position.Bottom} id="target-bottom" style={{ background: '#e8e8e1', border: 'none', width: 4, height: 4 }} />
       <Handle type="source" position={Position.Bottom} id="source-bottom" style={{ background: '#e8e8e1', border: 'none', width: 4, height: 4 }} />
@@ -198,20 +206,24 @@ export default function VisualMachineEditor({
       }
     }
 
-    const initialEdges: Edge[] = Array.from(edgeMap.values()).map((e, idx) => ({
-      id: `${e.source}-${e.target}-${idx}`,
-      source: e.source,
-      target: e.target,
-      sourceHandle: e.source === e.target ? 'source-top' : undefined,
-      targetHandle: e.source === e.target ? 'target-top' : undefined,
-      label: e.labels.join(', '),
-      markerEnd: { type: MarkerType.ArrowClosed, color: '#c5a028' },
-      style: { stroke: '#c5a028', strokeWidth: 2, zIndex: 10 },
-      labelStyle: { fill: '#1c1c1c', fontWeight: 600, fontSize: type === 'TM' ? 10 : 12 },
-      labelBgStyle: { fill: '#fff', fillOpacity: 0.9, rx: 4, ry: 4 },
-      type: e.source === e.target ? 'selfloop' : 'default',
-      data: { originalTransitions: e.data }
-    }));
+    const initialEdges: Edge[] = Array.from(edgeMap.values()).flatMap((e, idx) => {
+      const isSelfLoop = e.source === e.target;
+      return [{
+        id: `${e.source}-${e.target}-${idx}`,
+        source: e.source,
+        target: e.target,
+        // Self loops always go to the top, others go to the sides to prevent overlap
+        sourceHandle: isSelfLoop ? 'source-top' : 'source-right',
+        targetHandle: isSelfLoop ? 'target-top' : 'target-left',
+        label: e.labels.join(', '),
+        markerEnd: { type: MarkerType.ArrowClosed, color: '#c5a028' },
+        style: { stroke: '#c5a028', strokeWidth: 2, zIndex: 10 },
+        labelStyle: { fill: '#1c1c1c', fontWeight: 600, fontSize: type === 'TM' ? 10 : 12 },
+        labelBgStyle: { fill: '#fff', fillOpacity: 0.9, rx: 4, ry: 4 },
+        type: isSelfLoop ? 'selfloop' : 'default',
+        data: { originalTransitions: e.data }
+      }];
+    });
 
 
     setNodes(initialNodes);

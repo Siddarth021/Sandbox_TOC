@@ -111,7 +111,7 @@ export default function Sandbox() {
 
   // DFA validation
   const hasDFAConflicts = useMemo(() => {
-    if (type !== 'DFA') return false;
+    if (modelType !== 'DFA') return false;
     const seen = new Set<string>();
     const transitions = Array.isArray(definition.transitions) ? definition.transitions : [];
     for (const t of transitions) {
@@ -120,7 +120,7 @@ export default function Sandbox() {
       seen.add(key);
     }
     return false;
-  }, [definition.transitions, type]);
+  }, [definition.transitions, modelType]);
 
   const handleSimulate = async () => {
     if (hasDFAConflicts) return;
@@ -129,25 +129,32 @@ export default function Sandbox() {
     setStepIndex(0);
     setIsPlaying(false);
     
-    try {
-      // First, create a temporary model for simulation
-      const createRes = await fetch('/api/models', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: `Simulation ${modelType}`,
-          type: modelType,
-          definition: definition,
-          user_id: user?.id
-        })
+    // Canonicalize transitions for the engine
+    let canonicalDefinition = { ...definition };
+    if (Array.isArray(definition.transitions)) {
+      const obj: any = {};
+      definition.transitions.forEach((t: any) => {
+        if (!obj[t.from]) obj[t.from] = {};
+        if (modelType === 'TM') {
+          obj[t.from][t.symbol] = { next: t.target, write: t.write || t.symbol, move: t.move || 'R' };
+        } else if (modelType === 'NFA' || modelType === 'PDA') {
+           if (!obj[t.from][t.symbol]) obj[t.from][t.symbol] = [];
+           obj[t.from][t.symbol].push(t.target);
+        } else {
+          obj[t.from][t.symbol] = t.target;
+        }
       });
-      const model = await createRes.json();
-      
+      canonicalDefinition.transitions = obj;
+    }
+
+    try {
       const simRes = await fetch('/api/simulate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model_id: model.id,
+          model_id: modelId,
+          definition: canonicalDefinition,
+          type: modelType,
           input_string: inputStr,
           user_id: user?.id
         })

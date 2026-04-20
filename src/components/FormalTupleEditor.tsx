@@ -45,25 +45,7 @@ export default function FormalTupleEditor({ type, definition, onChange, onValida
   }, [errors]);
 
   const updateField = (field: string, value: any) => {
-    let finalValue = value;
-    
-    // Convert editing list back to canonical object for Sandbox/Backend if needed
-    if (field === 'transitions' && Array.isArray(value)) {
-      if (type === 'DFA' || type === 'TM') {
-        const obj: any = {};
-        value.forEach((t: any) => {
-          if (!obj[t.from]) obj[t.from] = {};
-          if (type === 'TM') {
-            obj[t.from][t.symbol] = { write: t.write, move: t.move, next: t.target };
-          } else {
-            obj[t.from][t.symbol] = t.target;
-          }
-        });
-        finalValue = obj;
-      }
-    }
-
-    const updated = { ...localDef, [field]: finalValue };
+    const updated = { ...localDef, [field]: value };
     setLocalDef(updated);
     onChange(updated);
   };
@@ -166,13 +148,13 @@ export default function FormalTupleEditor({ type, definition, onChange, onValida
 
   const renderTMTransitions = () => (
     <div className="space-y-4">
-       {Object.entries(localDef.transitions || {}).flatMap(([from, transMap]: [string, any]) => 
+      {Object.entries(localDef.transitions || {}).flatMap(([from, transMap]: [string, any]) => (
         Object.entries(transMap).map(([read, action]: [string, any]) => (
           <div key={`${from}-${read}`} className="grid grid-cols-6 gap-2 items-center bg-[#fdfdfc] border border-[#e8e8e1] p-4">
-            <select value={from} onChange={(e) => {/* Swap keys logic */}} className="input-field text-[10px]">
+            <select value={from} className="input-field text-[10px]">
               {localDef.states.map((s: string) => <option key={s}>{s}</option>)}
             </select>
-            <input value={read} className="input-field text-[10px] text-center" />
+            <input value={read} className="input-field text-[10px] text-center" readOnly />
             <span className="text-gray-300 text-center">→</span>
             <select value={action.next} onChange={(e) => updateTMTransition(from, read, 'next', e.target.value)} className="input-field text-[10px]">
               {localDef.states.map((s: string) => <option key={s}>{s}</option>)}
@@ -184,7 +166,7 @@ export default function FormalTupleEditor({ type, definition, onChange, onValida
             </select>
           </div>
         ))
-      }
+      ))}
     </div>
   );
 
