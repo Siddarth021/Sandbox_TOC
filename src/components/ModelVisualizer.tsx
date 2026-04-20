@@ -11,6 +11,72 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import dagre from '@dagrejs/dagre';
+import { BaseEdge, EdgeLabelRenderer, EdgeProps } from 'reactflow';
+
+// Smart Curved Edge for bi-directional and clean spacing
+const SmartEdge = ({
+  id,
+  sourceX,
+  sourceY,
+  targetX,
+  targetY,
+  style = {},
+  markerEnd,
+  label,
+}: EdgeProps) => {
+  const midX = (sourceX + targetX) / 2;
+  const midY = (sourceY + targetY) / 2;
+
+  const dx = targetX - sourceX;
+  const dy = targetY - sourceY;
+  const len = Math.sqrt(dx * dx + dy * dy) || 1;
+
+  // Dynamic offset to create a nice arc
+  const offset = Math.min(30, len / 4); 
+  
+  // Perpendicular vector for the curve control point
+  const nx = -dy / len;
+  const ny = dx / len;
+  
+  const cx = midX + nx * offset;
+  const cy = midY + ny * offset;
+
+  const edgePath = `M ${sourceX} ${sourceY} Q ${cx} ${cy} ${targetX} ${targetY}`;
+
+  return (
+    <>
+      <BaseEdge path={edgePath} markerEnd={markerEnd} style={{ ...style, strokeWidth: 2.2 }} />
+      {label && (
+        <EdgeLabelRenderer>
+          <div
+            style={{
+              position: 'absolute',
+              transform: `translate(-50%, -50%) translate(${cx}px, ${cy}px)`,
+              fontSize: 9,
+              fontWeight: 800,
+              pointerEvents: 'all',
+              backgroundColor: 'white',
+              border: '1px solid #6366f1',
+              color: '#1c1c1c',
+              padding: '1px 5px',
+              borderRadius: '3px',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+              zIndex: 1001,
+              whiteSpace: 'nowrap'
+            }}
+            className="nodrag nopan"
+          >
+            {label}
+          </div>
+        </EdgeLabelRenderer>
+      )}
+    </>
+  );
+};
+
+const edgeTypes = {
+  smart: SmartEdge
+};
 
 interface ModelVisualizerProps {
   type: MachineType | string;
@@ -109,6 +175,7 @@ export default function ModelVisualizer({ type, definition, activeState, activeS
             labelStyle: { fill: '#fff', fontWeight: 700 },
             labelBgStyle: { fill: '#1e293b' },
             markerEnd: { type: MarkerType.ArrowClosed, color: '#6366f1' },
+            type: 'smart'
           });
         });
       });
@@ -132,6 +199,7 @@ export default function ModelVisualizer({ type, definition, activeState, activeS
           labelStyle: { fill: '#fff', fontSize: 10 },
           labelBgStyle: { fill: '#1e293b' },
           markerEnd: { type: MarkerType.ArrowClosed, color: '#0ea5e9' },
+          type: 'smart'
         });
       });
     }
@@ -145,6 +213,7 @@ export default function ModelVisualizer({ type, definition, activeState, activeS
       <ReactFlow
         nodes={nodes}
         edges={edges}
+        edgeTypes={edgeTypes}
         fitView
         nodesDraggable={true}
         className="bg-slate-950/20"

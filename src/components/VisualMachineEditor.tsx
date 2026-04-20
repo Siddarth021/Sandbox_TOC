@@ -77,6 +77,67 @@ const SelfLoopEdge = ({
   );
 };
 
+// Smart Curved Edge for bi-directional and clean spacing
+const SmartEdge = ({
+  id,
+  sourceX,
+  sourceY,
+  targetX,
+  targetY,
+  style = {},
+  markerEnd,
+  label,
+}: EdgeProps) => {
+  const midX = (sourceX + targetX) / 2;
+  const midY = (sourceY + targetY) / 2;
+
+  const dx = targetX - sourceX;
+  const dy = targetY - sourceY;
+  const len = Math.sqrt(dx * dx + dy * dy) || 1;
+
+  // Dynamic offset to create a nice arc
+  const offset = Math.min(40, len / 3); 
+  
+  // Perpendicular vector for the curve control point
+  const nx = -dy / len;
+  const ny = dx / len;
+  
+  const cx = midX + nx * offset;
+  const cy = midY + ny * offset;
+
+  const edgePath = `M ${sourceX} ${sourceY} Q ${cx} ${cy} ${targetX} ${targetY}`;
+
+  return (
+    <>
+      <BaseEdge path={edgePath} markerEnd={markerEnd} style={{ ...style, strokeWidth: 2.2 }} />
+      {label && (
+        <EdgeLabelRenderer>
+          <div
+            style={{
+              position: 'absolute',
+              transform: `translate(-50%, -50%) translate(${cx}px, ${cy}px)`,
+              fontSize: 10,
+              fontWeight: 800,
+              pointerEvents: 'all',
+              backgroundColor: 'white',
+              border: '1.5px solid #c5a028',
+              color: '#1c1c1c',
+              padding: '2px 8px',
+              borderRadius: '4px',
+              boxShadow: '0 4px 12px rgba(197, 160, 40, 0.15)',
+              zIndex: 1001,
+              whiteSpace: 'nowrap'
+            }}
+            className="nodrag nopan"
+          >
+            {label}
+          </div>
+        </EdgeLabelRenderer>
+      )}
+    </>
+  );
+};
+
 // Custom State Node Component
 interface StateNodeData {
   isActive: boolean;
@@ -100,27 +161,15 @@ const StateNode = ({ data, id }: { data: StateNodeData, id: string }) => {
       )}
       <div className="text-zinc-800">{data.label}</div>
       
-      {/* 4-Way Handles for clean arrow routing */}
-      <Handle type="target" position={Position.Top} id="target-top" style={{ opacity: 0 }} />
-      <Handle type="target" position={Position.Bottom} id="target-bottom" style={{ opacity: 0 }} />
-      <Handle type="target" position={Position.Left} id="target-left" style={{ opacity: 0 }} />
-      <Handle type="target" position={Position.Right} id="target-right" style={{ opacity: 0 }} />
-      
-      <Handle type="source" position={Position.Top} id="source-top" style={{ opacity: 0 }} />
-      <Handle type="source" position={Position.Bottom} id="source-bottom" style={{ opacity: 0 }} />
-      <Handle type="source" position={Position.Left} id="source-left" style={{ opacity: 0 }} />
-      <Handle type="source" position={Position.Right} id="source-right" style={{ opacity: 0 }} />
-      
-      <span className="z-10">{id}</span>
-      
-      <Handle type="target" position={Position.Bottom} id="target-bottom" style={{ background: '#e8e8e1', border: 'none', width: 4, height: 4 }} />
-      <Handle type="source" position={Position.Bottom} id="source-bottom" style={{ background: '#e8e8e1', border: 'none', width: 4, height: 4 }} />
-      
-      <Handle type="target" position={Position.Left} id="target-left" style={{ background: '#e8e8e1', border: 'none' }} />
-      <Handle type="source" position={Position.Left} id="source-left" style={{ background: '#e8e8e1', border: 'none' }} />
-      
-      <Handle type="target" position={Position.Right} id="target-right" style={{ background: '#e8e8e1', border: 'none' }} />
-      <Handle type="source" position={Position.Right} id="source-right" style={{ background: '#e8e8e1', border: 'none' }} />
+      {/* Universal handles for automatic routing */}
+      <Handle type="target" position={Position.Top} style={{ opacity: 0 }} />
+      <Handle type="source" position={Position.Top} style={{ opacity: 0 }} />
+      <Handle type="target" position={Position.Bottom} style={{ opacity: 0 }} />
+      <Handle type="source" position={Position.Bottom} style={{ opacity: 0 }} />
+      <Handle type="target" position={Position.Left} style={{ opacity: 0 }} />
+      <Handle type="source" position={Position.Left} style={{ opacity: 0 }} />
+      <Handle type="target" position={Position.Right} style={{ opacity: 0 }} />
+      <Handle type="source" position={Position.Right} style={{ opacity: 0 }} />
     </div>
   );
 };
@@ -128,6 +177,7 @@ const StateNode = ({ data, id }: { data: StateNodeData, id: string }) => {
 
 const edgeTypes = {
   selfloop: SelfLoopEdge,
+  smart: SmartEdge
 };
 
 const nodeTypes = {
@@ -223,15 +273,12 @@ export default function VisualMachineEditor({
         id: `${e.source}-${e.target}-${idx}`,
         source: e.source,
         target: e.target,
-        // Self loops always go to the top, others go to the sides to prevent overlap
-        sourceHandle: isSelfLoop ? 'source-top' : 'source-right',
-        targetHandle: isSelfLoop ? 'target-top' : 'target-left',
         label: e.labels.join(', '),
         markerEnd: { type: MarkerType.ArrowClosed, color: '#c5a028' },
         style: { stroke: '#c5a028', strokeWidth: 2, zIndex: 10 },
         labelStyle: { fill: '#1c1c1c', fontWeight: 600, fontSize: type === 'TM' ? 10 : 12 },
         labelBgStyle: { fill: '#fff', fillOpacity: 0.9, rx: 4, ry: 4 },
-        type: isSelfLoop ? 'selfloop' : 'default',
+        type: isSelfLoop ? 'selfloop' : 'smart',
         data: { originalTransitions: e.data }
       }];
     });
