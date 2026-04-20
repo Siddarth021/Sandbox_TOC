@@ -178,32 +178,43 @@ export default function VisualMachineEditor({
     const edgeMap = new Map<string, { source: string, target: string, labels: string[], data: any[] }>();
 
     if (type === 'DFA' || type === 'NFA') {
-      const transitions = initialDefinition.transitions as Record<string, Record<string, string | string[]>>;
-      for (const [from, transMap] of Object.entries(transitions || {})) {
-        for (const [symbol, targets] of Object.entries(transMap)) {
-          const targetList = Array.isArray(targets) ? targets : [targets];
-          targetList.forEach((to: string) => {
-            const key = `${from}-${to}`;
-            if (!edgeMap.has(key)) {
-              edgeMap.set(key, { source: from, target: to, labels: [], data: [] });
-            }
-            edgeMap.get(key)!.labels.push(symbol === "" ? 'ε' : symbol);
-            edgeMap.get(key)!.data.push({ symbol });
-          });
-        }
-      }
+      const transitionsList = Array.isArray(initialDefinition.transitions) 
+        ? initialDefinition.transitions 
+        : Object.entries(initialDefinition.transitions || {}).flatMap(([from, transMap]: [string, any]) => 
+            Object.entries(transMap).map(([symbol, target]) => ({ from, symbol, target }))
+          );
+
+      transitionsList.forEach((t: any) => {
+        const from = t.from;
+        const symbol = t.symbol;
+        const targetList = Array.isArray(t.target) ? t.target : [t.target];
+        
+        targetList.forEach((to: string) => {
+          const key = `${from}-${to}`;
+          if (!edgeMap.has(key)) {
+            edgeMap.set(key, { source: from, target: to, labels: [], data: [] });
+          }
+          edgeMap.get(key)!.labels.push(symbol === "" ? 'ε' : symbol);
+          edgeMap.get(key)!.data.push({ symbol });
+        });
+      });
     } else if (type === 'TM') {
-      for (const [from, transMap] of Object.entries(initialDefinition.transitions || {})) {
-        for (const [read, action] of Object.entries(transMap as any)) {
-           const a = action as any;
-           const key = `${from}-${a.next}`;
-           if (!edgeMap.has(key)) {
-             edgeMap.set(key, { source: from, target: a.next, labels: [], data: [] });
-           }
-           edgeMap.get(key)!.labels.push(`${read}→${a.write},${a.move}`);
-           edgeMap.get(key)!.data.push({ read, write: a.write, move: a.move });
+      const transitionsList = Array.isArray(initialDefinition.transitions)
+        ? initialDefinition.transitions
+        : Object.entries(initialDefinition.transitions || {}).flatMap(([from, transMap]: [string, any]) =>
+            Object.entries(transMap).map(([read, action]: [string, any]) => ({ from, read, ...action }))
+          );
+
+      transitionsList.forEach((t: any) => {
+        const from = t.from;
+        const read = t.read;
+        const key = `${from}-${t.next}`;
+        if (!edgeMap.has(key)) {
+          edgeMap.set(key, { source: from, target: t.next, labels: [], data: [] });
         }
-      }
+        edgeMap.get(key)!.labels.push(`${read}→${t.write},${t.move}`);
+        edgeMap.get(key)!.data.push({ read, write: t.write, move: t.move });
+      });
     }
 
     const initialEdges: Edge[] = Array.from(edgeMap.values()).flatMap((e, idx) => {

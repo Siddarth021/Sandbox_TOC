@@ -87,41 +87,53 @@ export default function ModelVisualizer({ type, definition, activeState, activeS
     
     // Handle FA/TM/PDA transitions
     if (type === 'DFA' || type === 'NFA') {
-      for (const [from, transMap] of Object.entries(definition.transitions || {})) {
-        for (const [symbol, targets] of Object.entries(transMap as any)) {
-          const targetList = Array.isArray(targets) ? targets : [targets];
-          targetList.forEach((to: string, idx: number) => {
-            initialEdges.push({
-              id: `${from}-${to}-${symbol}-${idx}`,
-              source: from,
-              target: to,
-              label: symbol === "" ? 'ε' : symbol,
-              animated: true,
-              style: { stroke: '#6366f1' },
-              labelStyle: { fill: '#fff', fontWeight: 700 },
-              labelBgStyle: { fill: '#1e293b' },
-              markerEnd: { type: MarkerType.ArrowClosed, color: '#6366f1' },
-            });
-          });
-        }
-      }
-    } else if (type === 'TM') {
-      for (const [from, transMap] of Object.entries(definition.transitions || {})) {
-        for (const [read, action] of Object.entries(transMap as any)) {
-          const a = action as any;
+      const transitions = Array.isArray(definition.transitions) 
+        ? definition.transitions 
+        : Object.entries(definition.transitions || {}).flatMap(([from, transMap]: [string, any]) => 
+            Object.entries(transMap).map(([symbol, target]) => ({ from, symbol, target }))
+          );
+
+      transitions.forEach((t: any, idx: number) => {
+        const from = t.from;
+        const symbol = t.symbol;
+        const targetList = Array.isArray(t.target) ? t.target : [t.target];
+        
+        targetList.forEach((to: string, tIdx: number) => {
           initialEdges.push({
-            id: `${from}-${a.next}-${read}`,
+            id: `${from}-${to}-${symbol}-${idx}-${tIdx}`,
             source: from,
-            target: a.next,
-            label: `${read}→${a.write},${a.move}`,
+            target: to,
+            label: symbol === "" ? 'ε' : symbol,
             animated: true,
-            style: { stroke: '#0ea5e9' },
-            labelStyle: { fill: '#fff', fontSize: 10 },
+            style: { stroke: '#6366f1' },
+            labelStyle: { fill: '#fff', fontWeight: 700 },
             labelBgStyle: { fill: '#1e293b' },
-            markerEnd: { type: MarkerType.ArrowClosed, color: '#0ea5e9' },
+            markerEnd: { type: MarkerType.ArrowClosed, color: '#6366f1' },
           });
-        }
-      }
+        });
+      });
+    } else if (type === 'TM') {
+      const transitionsList = Array.isArray(definition.transitions)
+        ? definition.transitions
+        : Object.entries(definition.transitions || {}).flatMap(([from, transMap]: [string, any]) =>
+            Object.entries(transMap).map(([read, action]: [string, any]) => ({ from, read, ...action }))
+          );
+
+      transitionsList.forEach((t: any, idx: number) => {
+        const from = t.from;
+        const read = t.read;
+        initialEdges.push({
+          id: `${from}-${t.next}-${read}-${idx}`,
+          source: from,
+          target: t.next,
+          label: `${read}→${t.write},${t.move}`,
+          animated: true,
+          style: { stroke: '#0ea5e9' },
+          labelStyle: { fill: '#fff', fontSize: 10 },
+          labelBgStyle: { fill: '#1e293b' },
+          markerEnd: { type: MarkerType.ArrowClosed, color: '#0ea5e9' },
+        });
+      });
     }
 
     const layoutedNodes = getLayoutedElements(initialNodes, initialEdges);
