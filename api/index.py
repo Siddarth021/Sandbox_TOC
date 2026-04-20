@@ -8,7 +8,7 @@ from app.engines.conversion_engine import ConversionEngine
 from app.engines.utm_engine import UTMEngine
 from app.engines.decidability_engine import DecidabilityEngine
 from app.engines.complexity_engine import ComplexityEngine
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Union
 import os
 
 app = FastAPI(title="Universal Computation Sandbox API")
@@ -43,17 +43,42 @@ async def global_exception_handler(request: Request, exc: Exception):
     print(traceback.format_exc())
     return JSONResponse(
         status_code=500,
-        content={"detail": f"Server Error: {str(exc)}"},
+        content={"detail": f"Internal Engine Error: {str(exc)}"},
         headers={"Access-Control-Allow-Origin": "*"}
     )
 
-from pydantic import ValidationError
+def canonicalize_transitions(transitions: Union[Dict, List], m_type: str) -> Dict:
+    """Converts Array-based transitions back to Object-based for the engine."""
+    if isinstance(transitions, dict):
+        return transitions
+    
+    obj = {}
+    if m_type == "PDA":
+        return transitions # PDA is already list-based in schema
+        
+    for t in transitions:
+        f = t.get("from")
+        s = t.get("symbol") or t.get("read")
+        to = t.get("target") or t.get("next")
+        
+        if f is None or s is None: continue
+        
+        if f not in obj: obj[f] = {}
+        
+        if m_type == "NFA":
+            if s not in obj[f]: obj[f][s] = []
+            if to not in obj[f][s]: obj[f][s].append(to)
+        elif m_type == "TM":
+            obj[f][s] = { "next": to, "write": t.get("write", s), "move": t.get("move", "R") }
+        else: # DFA
+            obj[f][s] = to
+            
+    return obj
 
-# Use both /api/ and / prefixes to be ultra-safe with Vercel rewrites
 @app.get("/api")
 @app.get("/")
 def read_root():
-    return {"status": "online", "message": "Stateless Engine Active"}
+    return {"status": "online", "message": "Stateless High-Performance Engine"}
 
 @app.post("/api/models")
 @app.post("/models")
@@ -106,6 +131,9 @@ def simulate(payload: Dict[str, Any], db: Session = Depends(get_db)):
         if not db_model: raise HTTPException(status_code=404, detail="Not found")
         m_type, dfn = db_model.type, db_model.definition
 
+    # Standardize format
+    dfn["transitions"] = canonicalize_transitions(dfn.get("transitions", {}), m_type)
+
     try:
         if m_type == "DFA": return SimulationEngine.simulate_dfa(DFADefinition(**dfn), input_string)
         if m_type == "NFA": return SimulationEngine.simulate_nfa(NFADefinition(**dfn), input_string)
@@ -129,6 +157,9 @@ def convert(payload: Dict[str, Any], db: Session = Depends(get_db)):
         if not db_model: raise HTTPException(status_code=404, detail="Not found")
         m_type, dfn = db_model.type, db_model.definition
     
+    # Standardize format before engine call
+    dfn["transitions"] = canonicalize_transitions(dfn.get("transitions", {}), m_type)
+
     try:
         if m_type == "NFA" and target_type == "DFA":
             return ConversionEngine.nfa_to_dfa(NFADefinition(**dfn)).dict()
@@ -146,7 +177,9 @@ def convert(payload: Dict[str, Any], db: Session = Depends(get_db)):
 @app.post("/utm")
 def run_utm(payload: Dict[str, Any]):
     try:
-        return UTMEngine.run_utm(TMDefinition(**payload.get("machine_definition")), payload.get("input_string", ""))
+        dfn = payload.get("machine_definition")
+        dfn["transitions"] = canonicalize_transitions(dfn.get("transitions", {}), "TM")
+        return UTMEngine.run_utm(TMDefinition(**dfn), payload.get("input_string", ""))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -164,6 +197,8 @@ def analyze_complexity(payload: Dict[str, Any], db: Session = Depends(get_db)):
         if not dfn:
             db_model = db.query(ComputationModel).filter(ComputationModel.id == int(payload.get("model_id"))).first()
             m_type, dfn = db_model.type, db_model.definition
+        
+        dfn["transitions"] = canonicalize_transitions(dfn.get("transitions", {}), m_type)
         res = SimulationEngine.simulate_tm(TMDefinition(**dfn), payload.get("input_string", ""))
         return ComplexityEngine.analyze_complexity(res["steps"], len(res.get("tape", "")), len(payload.get("input_string", "")))
     except Exception as e:
