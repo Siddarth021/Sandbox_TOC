@@ -19,16 +19,15 @@ class ComputationModel(Base):
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 if not DATABASE_URL:
+    # Use a persistent local file if possible, or in-memory for Vercel
     if os.getenv("VERCEL"):
-         # On Vercel, we MUST have a DATABASE_URL. Fallback to a non-writing dummy or raise error.
-         # For safety, we use an in-memory SQLite which is allowed but won't persist, 
-         # but we want to signal the missing env var.
          DATABASE_URL = "sqlite:///:memory:"
+         print("WARNING: Using in-memory SQLite on Vercel. Data will not persist across restarts.")
     else:
-         # Local development fallback
          DATABASE_URL = "sqlite:///./models.db"
+         print(f"Using local SQLite: {DATABASE_URL}")
 
-# Ensure Postgres URLs from platforms like Heroku/Supabase work with SQLAlchemy 1.4+
+# Normalize postgres URL for SQLAlchemy 1.4+
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
@@ -36,11 +35,25 @@ engine_args = {}
 if "sqlite" in DATABASE_URL:
     engine_args["connect_args"] = {"check_same_thread": False}
 else:
-    # Force SSL for Supabase/Production Postgres
-    engine_args["connect_args"] = {"sslmode": "require"}
+    # Production PostgreSQL (Supabase/Vercel)
+    # Using psycopg2 driver explicitly and requiring SSL
+    if "postgresql" in DATABASE_URL and "sslmode" not in DATABASE_URL:
+        engine_args["connect_args"] = {"sslmode": "require"}
 
-engine = create_engine(DATABASE_URL, **engine_args)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+try:
+    engine = create_engine(DATABASE_URL, **engine_args)
+    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    print(f"Database engine created for: {DATABASE_URL.split('@')[-1] if '@' in DATABASE_URL else 'local'}")
+except Exception as e:
+    print(f"CRITICAL: Failed to create database engine: {e}")
+    # Fallback to in-memory to prevent complete crash of the serverless function
+    engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
+    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 def init_db():
-    Base.metadata.create_all(bind=engine)
+    try:
+        Base.metadata.create_all(bind=engine)
+        print("Schema ensured.")
+    except Exception as e:
+        print(f"Schema creation failed: {e}")
+        raise e

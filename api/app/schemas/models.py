@@ -6,14 +6,14 @@ class DFADefinition(BaseModel):
     alphabet: List[str]
     start_state: str
     accept_states: List[str]
-    transitions: Dict[str, Dict[str, str]]
+    transitions: Union[Dict[str, Dict[str, str]], List[Dict[str, Any]]]
 
 class NFADefinition(BaseModel):
     states: List[str]
     alphabet: List[str]
     start_state: str
     accept_states: List[str]
-    transitions: Dict[str, Dict[str, List[str]]]  # State -> Symbol -> List of next states
+    transitions: Union[Dict[str, Dict[str, List[str]]], List[Dict[str, Any]]]
 
 class PDADefinition(BaseModel):
     states: List[str]
@@ -30,7 +30,8 @@ class TMDefinition(BaseModel):
     tape_symbols: List[str]
     start_state: str
     accept_state: str
-    transitions: Dict[str, Dict[str, Dict[str, str]]]  # state -> symbol -> {write, move, next}
+    transitions: Union[Dict[str, Dict[str, Dict[str, str]]], List[Dict[str, Any]]]
+    # state -> symbol -> {write, move, next} or list of {from, read, write, move, next}
 
 class CFGDefinition(BaseModel):
     terminals: List[str]
