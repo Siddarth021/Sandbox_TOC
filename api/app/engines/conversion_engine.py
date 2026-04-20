@@ -118,14 +118,38 @@ class ConversionEngine:
         )
 
     @staticmethod
+    def simplify_regex(re: str) -> str:
+        if not re or re == "∅" or re == "ε": return re
+        
+        # Iteratively apply core simplification rules
+        prev = ""
+        while prev != re:
+            prev = re
+            # 1. Double parentheses
+            re = re.replace("((", "(").replace("))", ")")
+            # 2. Epsilon identity
+            re = re.replace("(ε)", "ε")
+            re = re.replace("εε", "ε")
+            re = re.replace("(ε)*", "ε")
+            # 3. Concatenation with epsilon (simplified)
+            import re as py_re
+            re = py_re.sub(r'([^|()\[\]*])ε', r'\1', re)
+            re = py_re.sub(r'ε([^|()\[\]*])', r'\1', re)
+            # 4. Remove parentheses around single chars
+            re = py_re.sub(r'\(([a-zA-Z0-9ε])\)', r'\1', re)
+            # 5. Clean up around pipes
+            re = re.replace("(ε)|", "|").replace("|(ε)", "|") if "|" in re else re.replace("ε", "") if len(re)>1 else re
+            re = re.replace("||", "|").strip("|")
+            
+        return re if re else "ε"
+
+    @staticmethod
     def dfa_to_regex(dfa: DFADefinition) -> str:
-        # State Elimination Algorithm
         states = list(dfa.states)
         start = dfa.start_state
         accepts = dfa.accept_states
         
-        # GNFA construction: Create a map of transitions as regex strings
-        # R[from][to] = regex
+        # GNFA construction
         R: Dict[str, Dict[str, str]] = {s1: {s2: "" for s2 in states + ["S", "A"]} for s1 in states + ["S", "A"]}
         
         for s1, trans in dfa.transitions.items():
@@ -133,25 +157,24 @@ class ConversionEngine:
                 if R[s1][s2]: R[s1][s2] += "|" + sym
                 else: R[s1][s2] = sym
         
-        # Add new start and accept states
         R["S"][start] = "ε"
         for acc in accepts:
             R[acc]["A"] = "ε"
             
         def get_regex(s1, s2):
-            return R[s1][s2] if R[s1][s2] else "∅"
+            val = R[s1][s2]
+            return val if val else "∅"
 
-        # Eliminate intermediate states
         for k in states:
             for i in [s for s in states + ["S"] if s != k]:
                 for j in [s for s in states + ["A"] if s != k]:
-                    # Rule: Rij = Rij | (Rik (Rkk)* Rkj)
                     rik = get_regex(i, k)
                     rkk = get_regex(k, k)
                     rkj = get_regex(k, j)
                     rij = get_regex(i, j)
                     
                     if rik != "∅" and rkj != "∅":
+                        # Rik Rkk* Rkj
                         term = f"({rik})"
                         if rkk != "∅":
                             term += f"({rkk})*"
@@ -161,9 +184,9 @@ class ConversionEngine:
                             R[i][j] = term
                         else:
                             R[i][j] = f"({rij})|({term})"
-            # Remove state k from R logic (conceptually)
             
-        return R["S"]["A"] if R["S"]["A"] else "∅"
+        raw_res = R["S"]["A"] if R["S"]["A"] else "∅"
+        return ConversionEngine.simplify_regex(raw_res)
 
     @staticmethod
     def pda_to_cfg(pda: PDADefinition) -> CFGDefinition:

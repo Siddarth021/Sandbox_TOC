@@ -145,11 +145,11 @@ export default function Models() {
                    {conversionResult.regex ? (
                      <div className="space-y-4">
                         <label className="text-[10px] uppercase tracking-widest text-gray-400 block">Identified Regular Expression</label>
-                        <div className="text-2xl text-[#1c1c1c] break-all border-l-4 border-[#c5a028] pl-6 py-2 bg-white italic font-light">
-                           {String(conversionResult.regex)}
+                        <div className="text-3xl text-[#1c1c1c] break-all border-y border-[#f0f0eb] py-8 my-4 bg-[#fdfdfc] text-center font-serif italic tracking-wider">
+                           {conversionResult.regex}
                         </div>
-                        <p className="text-[11px] text-gray-500 leading-relaxed italic">
-                           Derived via state elimination. This expression represents the formal language accepted by the source automaton.
+                        <p className="text-[11px] text-gray-400 leading-relaxed text-center max-w-md mx-auto">
+                           Optimized formal expression derived via state elimination. Redundant transitions and identity elements have been algebraically pruned for clarity.
                         </p>
                      </div>
                    ) : (
