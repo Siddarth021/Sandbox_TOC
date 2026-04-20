@@ -19,8 +19,14 @@ class ComputationModel(Base):
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 if not DATABASE_URL:
-    # Local development fallback only if explicitly intended
-    DATABASE_URL = "sqlite:///./models.db"
+    if os.getenv("VERCEL"):
+         # On Vercel, we MUST have a DATABASE_URL. Fallback to a non-writing dummy or raise error.
+         # For safety, we use an in-memory SQLite which is allowed but won't persist, 
+         # but we want to signal the missing env var.
+         DATABASE_URL = "sqlite:///:memory:"
+    else:
+         # Local development fallback
+         DATABASE_URL = "sqlite:///./models.db"
 
 # Ensure Postgres URLs from platforms like Heroku/Supabase work with SQLAlchemy 1.4+
 if DATABASE_URL.startswith("postgres://"):

@@ -53,7 +53,12 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 @app.get("/")
 def read_root():
-    return {"message": "Welcome to the Universal Computation Sandbox API"}
+    from app.models.db import DATABASE_URL
+    db_status = "Connected" if "postgresql" in DATABASE_URL else "FALLBACK (MISSING DATABASE_URL)"
+    return {
+        "message": "Welcome to the Universal Computation Sandbox API",
+        "database": db_status
+    }
 
 @app.post("/models")
 def save_model(model_data: Dict[str, Any], db: Session = Depends(get_db)):
