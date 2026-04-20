@@ -51,7 +51,12 @@ async def global_exception_handler(request: Request, exc: Exception):
         }
     )
 
-@app.get("/")
+from fastapi import APIRouter
+from pydantic import ValidationError
+
+api_router = APIRouter(prefix="/api")
+
+@api_router.get("/")
 def read_root():
     from app.models.db import DATABASE_URL
     db_status = "Connected" if "postgresql" in DATABASE_URL else "FALLBACK (MISSING DATABASE_URL)"
@@ -60,21 +65,24 @@ def read_root():
         "database": db_status
     }
 
-@app.post("/models")
+@api_router.post("/models")
 def save_model(model_data: Dict[str, Any], db: Session = Depends(get_db)):
     model_id = model_data.get("id")
     user_id = model_data.get("user_id")
     
     if model_id:
-        db_model = db.query(ComputationModel).filter(ComputationModel.id == int(model_id)).first()
-        if db_model:
-            if db_model.user_id and db_model.user_id != user_id:
-                raise HTTPException(status_code=403, detail="Unauthorized")
-            db_model.name = model_data.get("name")
-            db_model.definition = model_data.get("definition")
-            db.commit()
-            db.refresh(db_model)
-            return db_model
+        try:
+            db_model = db.query(ComputationModel).filter(ComputationModel.id == int(model_id)).first()
+            if db_model:
+                if db_model.user_id and db_model.user_id != user_id:
+                    raise HTTPException(status_code=403, detail="Unauthorized")
+                db_model.name = model_data.get("name")
+                db_model.definition = model_data.get("definition")
+                db.commit()
+                db.refresh(db_model)
+                return db_model
+        except (ValueError, TypeError):
+             pass
 
     db_model = ComputationModel(
         name=model_data.get("name"),
@@ -87,31 +95,35 @@ def save_model(model_data: Dict[str, Any], db: Session = Depends(get_db)):
     db.refresh(db_model)
     return db_model
 
-@app.get("/models")
+@api_router.get("/models")
 def list_models(user_id: str = None, db: Session = Depends(get_db)):
     query = db.query(ComputationModel)
     if user_id:
         query = query.filter(ComputationModel.user_id == user_id)
     return query.all()
 
-from pydantic import ValidationError
-
-@app.post("/simulate")
+@api_router.post("/simulate")
 def simulate(payload: Dict[str, Any], db: Session = Depends(get_db)):
     model_id = payload.get("model_id")
     input_string = payload.get("input_string", "")
-    
     user_id = payload.get("user_id")
     
-    db_model = db.query(ComputationModel).filter(ComputationModel.id == int(model_id)).first()
-    if not db_model:
-        raise HTTPException(status_code=404, detail="Model not found")
+    # Check if we have an inline definition (for unsaved simulations)
+    inline_def = payload.get("definition")
+    m_type = payload.get("type")
     
-    if db_model.user_id and db_model.user_id != user_id:
-        raise HTTPException(status_code=403, detail="Unauthorized access to this model")
-    
-    m_type = db_model.type
-    dfn = db_model.definition
+    if inline_def and m_type:
+        dfn = inline_def
+    else:
+        if not model_id:
+            raise HTTPException(status_code=400, detail="Missing model_id or inline definition")
+        db_model = db.query(ComputationModel).filter(ComputationModel.id == int(model_id)).first()
+        if not db_model:
+            raise HTTPException(status_code=404, detail="Model not found")
+        if db_model.user_id and db_model.user_id != user_id:
+            raise HTTPException(status_code=403, detail="Unauthorized access to this model")
+        m_type = db_model.type
+        dfn = db_model.definition
     
     try:
         if m_type == "DFA":
@@ -123,11 +135,11 @@ def simulate(payload: Dict[str, Any], db: Session = Depends(get_db)):
         elif m_type == "PDA":
             return SimulationEngine.simulate_pda(PDADefinition(**dfn), input_string)
         else:
-            raise HTTPException(status_code=400, detail="Simulation not supported for this type yet")
+            raise HTTPException(status_code=400, detail=f"Simulation not supported for type {m_type}")
     except ValidationError as e:
         raise HTTPException(status_code=400, detail=f"Invalid {m_type} definition: {str(e)}")
 
-@app.post("/convert")
+@api_router.post("/convert")
 def convert(payload: Dict[str, Any], db: Session = Depends(get_db)):
     source_id = payload.get("source_model_id")
     target_type = payload.get("target_type", "").upper()
@@ -154,25 +166,23 @@ def convert(payload: Dict[str, Any], db: Session = Depends(get_db)):
     
     raise HTTPException(status_code=400, detail=f"Conversion from {db_model.type} to {target_type} is not supported.")
 
-@app.post("/utm")
+@api_router.post("/utm")
 def run_utm(payload: Dict[str, Any]):
     machine_def = payload.get("machine_definition")
     input_string = payload.get("input_string", "")
     return UTMEngine.run_utm(TMDefinition(**machine_def), input_string)
 
-@app.post("/decidability")
+@api_router.post("/decidability")
 def analyze_decidability(payload: Dict[str, Any]):
     problem_type = payload.get("problem_type")
     return DecidabilityEngine.analyze(problem_type)
 
-@app.post("/complexity")
+@api_router.post("/complexity")
 def analyze_complexity(payload: Dict[str, Any], db: Session = Depends(get_db)):
     model_id = payload.get("model_id")
     input_string = payload.get("input_string", "")
-    
     user_id = payload.get("user_id")
     
-    # Run simulation first to get steps/space
     db_model = db.query(ComputationModel).filter(ComputationModel.id == int(model_id)).first()
     if not db_model or db_model.type != "TM":
         raise HTTPException(status_code=400, detail="Complexity analysis currently optimized for TM")
@@ -182,6 +192,8 @@ def analyze_complexity(payload: Dict[str, Any], db: Session = Depends(get_db)):
     
     res = SimulationEngine.simulate_tm(TMDefinition(**db_model.definition), input_string)
     return ComplexityEngine.analyze_complexity(res["steps"], len(res.get("tape", "")), len(input_string))
+
+app.include_router(api_router)
 
 if __name__ == "__main__":
     import uvicorn

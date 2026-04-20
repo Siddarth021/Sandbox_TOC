@@ -159,7 +159,7 @@ const StateNode = ({ data, id }: { data: StateNodeData, id: string }) => {
            ➜
         </div>
       )}
-      <div className="text-zinc-800">{data.label}</div>
+      <div className="text-zinc-800 z-10">{data.label || id}</div>
       
       {/* Precision Handles for collision-free routing */}
       <Handle type="target" position={Position.Top} id="top" style={{ opacity: 0 }} />
@@ -224,7 +224,8 @@ export default function VisualMachineEditor({
         isAccept: Array.isArray(initialDefinition.accept_states) 
           ? initialDefinition.accept_states.includes(id) 
           : initialDefinition.accept_states === id,
-        isActive: !!activeStates?.includes(id)
+        isActive: !!activeStates?.includes(id),
+        label: id
       }
     }));
 
