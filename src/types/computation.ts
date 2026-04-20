@@ -6,6 +6,9 @@ export interface MachineDefinition {
   start_state: string;
   accept_states: string[];
   transitions: Record<string, Record<string, string | string[] | any>> | any[];
+  // PDA specific
+  stack_alphabet?: string[];
+  stack_start_symbol?: string;
   // TM specific
   tape_symbols?: string[];
   accept_state?: string;

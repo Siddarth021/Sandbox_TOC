@@ -55,6 +55,7 @@ export default function ModelVisualizer({ type, definition, activeState, activeS
       const isActive = state === activeState || activeStates?.includes(state);
       return {
         id: state,
+        position: { x: 0, y: 0 },
         data: { label: state },
         style: {
           background: isActive ? '#0ea5e9' : state === definition.start_state ? '#1e293b' : '#0f172a',

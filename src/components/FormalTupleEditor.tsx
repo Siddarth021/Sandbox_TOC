@@ -108,6 +108,15 @@ export default function FormalTupleEditor({ type, definition, onChange, onValida
     updateField('transitions', newList);
   };
 
+  const updateTMTransition = (from: string, read: string, field: string, value: string) => {
+    const transitions = { ...localDef.transitions } as any;
+    if (!transitions[from]) transitions[from] = {};
+    if (!transitions[from][read]) transitions[from][read] = { next: from, write: read, move: 'R' };
+    
+    transitions[from][read][field] = value;
+    updateField('transitions', transitions);
+  };
+
   const renderFSMTransitions = () => {
     const list = getTransitionList();
     const seen = new Set<string>();
@@ -165,11 +174,11 @@ export default function FormalTupleEditor({ type, definition, onChange, onValida
             </select>
             <input value={read} className="input-field text-[10px] text-center" />
             <span className="text-gray-300 text-center">→</span>
-            <select value={action.next} onChange={(e) => updateTransition(from, read, 'next', e.target.value)} className="input-field text-[10px]">
+            <select value={action.next} onChange={(e) => updateTMTransition(from, read, 'next', e.target.value)} className="input-field text-[10px]">
               {localDef.states.map((s: string) => <option key={s}>{s}</option>)}
             </select>
-            <input value={action.write} onChange={(e) => updateTransition(from, read, 'write', e.target.value)} className="input-field text-[10px] text-center" />
-            <select value={action.move} onChange={(e) => updateTransition(from, read, 'move', e.target.value)} className="input-field text-[10px]">
+            <input value={action.write} onChange={(e) => updateTMTransition(from, read, 'write', e.target.value)} className="input-field text-[10px] text-center" />
+            <select value={action.move} onChange={(e) => updateTMTransition(from, read, 'move', e.target.value)} className="input-field text-[10px]">
               <option>R</option>
               <option>L</option>
             </select>
