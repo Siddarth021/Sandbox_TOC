@@ -1,30 +1,29 @@
 'use client';
-
+ 
 import { useState, useEffect } from 'react';
-import { useUser } from "@clerk/nextjs";
 import { MachineType, MachineDefinition, TransformationResult } from '@/types/computation';
+import { StorageService, SavedModel } from '@/utils/storage';
+import Link from 'next/link';
 
 export default function Models() {
-  const { user } = useUser();
-  const [models, setModels] = useState<({ id: number, name: string, type: MachineType, definition: MachineDefinition })[]>([]);
+  const [models, setModels] = useState<SavedModel[]>([]);
   const [targetType, setTargetType] = useState<string>('');
   const [conversionResult, setConversionResult] = useState<TransformationResult | null>(null);
   const [loading, setLoading] = useState(false);
 
+  // Load from LocalStorage
   useEffect(() => {
-    if (user?.id) {
-       fetch(`/api/models?user_id=${user.id}`)
-        .then(res => res.json())
-        .then(data => setModels(data));
-    } else {
-       // Allow seeing public models or empty if not logged in
-       fetch('/api/models')
-        .then(res => res.json())
-        .then(data => setModels(data));
-    }
-  }, [user]);
+    setModels(StorageService.getModels());
+  }, []);
 
-  const handleConvert = async (modelId: number) => {
+  const handleDelete = (id: string) => {
+    if (confirm("Are you sure you want to delete this model from your local archive?")) {
+      StorageService.deleteModel(id);
+      setModels(StorageService.getModels());
+    }
+  };
+
+  const handleConvert = async (model: SavedModel) => {
     if (!targetType) {
       alert("Please select a target formalism for conversion.");
       return;
@@ -35,11 +34,13 @@ export default function Models() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          source_model_id: modelId,
+          source_type: model.type,
+          definition: model.definition,
           target_type: targetType
         })
       });
       const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Conversion Failed");
       setConversionResult(data);
     } catch (err) {
       alert("Conversion Error: " + err);
@@ -82,10 +83,22 @@ export default function Models() {
                     {m.type === 'PDA' && <option value="CFG">To CFG</option>}
                   </select>
                   <button 
-                    onClick={() => handleConvert(m.id)}
+                    onClick={() => handleConvert(m)}
                     className="btn-primary py-1 px-4"
                   >
                     {loading ? "..." : "Convert"}
+                  </button>
+                  <Link 
+                    href={`/sandbox?id=${m.id}`}
+                    className="text-[10px] uppercase tracking-widest font-bold text-[#c5a028] hover:underline"
+                  >
+                    Load
+                  </Link>
+                  <button 
+                    onClick={() => handleDelete(m.id)}
+                    className="text-red-300 hover:text-red-500 transition-colors"
+                  >
+                    ✕
                   </button>
                 </div>
               </div>
@@ -115,4 +128,3 @@ export default function Models() {
     </div>
   );
 }
-

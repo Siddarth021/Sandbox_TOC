@@ -87,7 +87,7 @@ def save_model(model_data: Dict[str, Any], db: Session = Depends(get_db)):
         if not model_data.get("name") or not model_data.get("type"):
             raise HTTPException(status_code=400, detail="Missing name or type")
 
-        if model_id:
+        if model_id and not str(model_id).startswith("model_"):
             try:
                 db_model = db.query(ComputationModel).filter(ComputationModel.id == int(model_id)).first()
                 if db_model:
@@ -144,8 +144,6 @@ def simulate(payload: Dict[str, Any], db: Session = Depends(get_db)):
             db_model = db.query(ComputationModel).filter(ComputationModel.id == int(model_id)).first()
             if not db_model:
                 raise HTTPException(status_code=404, detail="Model not found")
-            if db_model.user_id and db_model.user_id != user_id:
-                raise HTTPException(status_code=403, detail="Unauthorized access to this model")
             m_type = db_model.type
             dfn = db_model.definition
         except Exception as e:
@@ -172,29 +170,44 @@ def convert(payload: Dict[str, Any], db: Session = Depends(get_db)):
     source_id = payload.get("source_model_id")
     target_type = payload.get("target_type", "").upper()
     
+    # Support stateless conversion with inline definition
+    inline_def = payload.get("definition")
+    source_type = payload.get("source_type")
+    
+    if inline_def and source_type:
+        m_type = source_type
+        dfn = inline_def
+    else:
+        if not source_id:
+            raise HTTPException(status_code=400, detail="Missing source_model_id or inline definition")
+        try:
+            db_model = db.query(ComputationModel).filter(ComputationModel.id == int(source_id)).first()
+            if not db_model:
+                raise HTTPException(status_code=404, detail="Source model not found")
+            m_type = db_model.type
+            dfn = db_model.definition
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Database Access Error: {str(e)}")
+    
     try:
-        db_model = db.query(ComputationModel).filter(ComputationModel.id == int(source_id)).first()
-        if not db_model:
-            raise HTTPException(status_code=404, detail="Source model not found")
-        
-        if db_model.type == "NFA" and target_type == "DFA":
-            result = ConversionEngine.nfa_to_dfa(NFADefinition(**db_model.definition))
+        if m_type == "NFA" and target_type == "DFA":
+            result = ConversionEngine.nfa_to_dfa(NFADefinition(**dfn))
             return result.dict()
-        elif db_model.type == "CFG" and target_type == "PDA":
-            result = ConversionEngine.cfg_to_pda(CFGDefinition(**db_model.definition))
+        elif m_type == "CFG" and target_type == "PDA":
+            result = ConversionEngine.cfg_to_pda(CFGDefinition(**dfn))
             return result.dict()
-        elif db_model.type == "DFA" and target_type == "REGEX":
-            result = ConversionEngine.dfa_to_regex(DFADefinition(**db_model.definition))
+        elif m_type == "DFA" and target_type == "REGEX":
+            result = ConversionEngine.dfa_to_regex(DFADefinition(**dfn))
             return {"regex": result}
-        elif db_model.type == "PDA" and target_type == "CFG":
-            result = ConversionEngine.pda_to_cfg(PDADefinition(**db_model.definition))
+        elif m_type == "PDA" and target_type == "CFG":
+            result = ConversionEngine.pda_to_cfg(PDADefinition(**dfn))
             return result.dict()
     except ValidationError as e:
          raise HTTPException(status_code=400, detail=f"Invalid source model: {str(e)}")
     except Exception as e:
          raise HTTPException(status_code=500, detail=f"Conversion error: {str(e)}")
     
-    raise HTTPException(status_code=400, detail=f"Conversion from {db_model.type} to {target_type} is not supported.")
+    raise HTTPException(status_code=400, detail=f"Conversion from {m_type} to {target_type} is not supported.")
 
 @api_router.post("/utm")
 def run_utm(payload: Dict[str, Any]):
@@ -220,14 +233,23 @@ def analyze_complexity(payload: Dict[str, Any], db: Session = Depends(get_db)):
         input_string = payload.get("input_string", "")
         user_id = payload.get("user_id")
         
-        db_model = db.query(ComputationModel).filter(ComputationModel.id == int(model_id)).first()
-        if not db_model or db_model.type != "TM":
-            raise HTTPException(status_code=400, detail="Complexity analysis currently optimized for TM")
+        # Support stateless
+        inline_def = payload.get("definition")
+        m_type = payload.get("type")
 
-        if db_model.user_id and db_model.user_id != user_id:
-            raise HTTPException(status_code=403, detail="Unauthorized access")
+        if inline_def and m_type:
+             dfn = inline_def
+        else:
+            db_model = db.query(ComputationModel).filter(ComputationModel.id == int(model_id)).first()
+            if not db_model:
+                raise HTTPException(status_code=400, detail="Complexity analysis requires a TM model")
+            m_type = db_model.type
+            dfn = db_model.definition
+
+        if m_type != "TM":
+             raise HTTPException(status_code=400, detail="Complexity analysis currently optimized for TM")
         
-        res = SimulationEngine.simulate_tm(TMDefinition(**db_model.definition), input_string)
+        res = SimulationEngine.simulate_tm(TMDefinition(**dfn), input_string)
         return ComplexityEngine.analyze_complexity(res["steps"], len(res.get("tape", "")), len(input_string))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

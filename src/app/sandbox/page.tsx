@@ -5,6 +5,7 @@ import VisualMachineEditor from '@/components/VisualMachineEditor';
 import FormalTupleEditor from '@/components/FormalTupleEditor';
 import { useUser } from "@clerk/nextjs";
 import { MachineType, MachineDefinition, SimulationResult } from '@/types/computation';
+import { StorageService } from '@/utils/storage';
 
 const BOILERPLATES: Record<string, any> = {
   DFA: {
@@ -102,27 +103,18 @@ function SandboxContent() {
   const router = useRouter();
   const urlId = searchParams.get('id');
 
-  // Initial load from URL ID
+  // Initial load from URL ID (LocalStorage)
   useEffect(() => {
-    if (urlId && user) {
-      const fetchModel = async () => {
-        try {
-          const resp = await fetch(`/api/models?user_id=${user.id}`);
-          const models = await resp.json();
-          const current = models.find((m: any) => String(m.id) === urlId);
-          if (current) {
-            setModelId(current.id);
-            setModelName(current.name);
-            setModelType(current.type);
-            setDefinition(current.definition);
-          }
-        } catch (err) {
-          console.error("Failed to load model from URL:", err);
-        }
-      };
-      fetchModel();
+    if (urlId) {
+      const current = StorageService.getModelById(urlId);
+      if (current) {
+        setModelId(current.id);
+        setModelName(current.name);
+        setModelType(current.type as MachineType);
+        setDefinition(current.definition);
+      }
     }
-  }, [urlId, user]);
+  }, [urlId]);
 
   const handleModelTypeChange = (newType: string) => {
     setModelType(newType);
@@ -206,24 +198,19 @@ function SandboxContent() {
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      const resp = await fetch('/api/models', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: modelId,
-          name: modelName,
-          type: modelType,
-          definition: definition,
-          user_id: user?.id
-        })
+      const id = modelId || `model_${Date.now()}`;
+      const saved = StorageService.saveModel({
+        id,
+        name: modelName,
+        type: modelType,
+        definition: definition,
       });
-      const data = await resp.json();
-      if (!resp.ok) throw new Error(data.detail || "Server Error");
-      if (data.id) {
-        setModelId(data.id);
-        router.push(`/sandbox?id=${data.id}`);
+
+      setModelId(saved.id);
+      if (!modelId) {
+        router.push(`/sandbox?id=${saved.id}`);
       }
-      alert("Model saved successfully!");
+      alert("Model successfully saved to your local Theory Archive!");
     } catch (err: any) {
       alert("Failed to save: " + err.message);
     } finally {
