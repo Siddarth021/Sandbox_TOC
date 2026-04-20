@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
 import VisualMachineEditor from '@/components/VisualMachineEditor';
 import FormalTupleEditor from '@/components/FormalTupleEditor';
 import { useUser } from "@clerk/nextjs";
+import { MachineType, MachineDefinition, SimulationResult } from '@/types/computation';
 
 const BOILERPLATES: Record<string, any> = {
   DFA: {
@@ -74,11 +74,11 @@ const BOILERPLATES: Record<string, any> = {
 
 export default function Sandbox() {
   const { user } = useUser();
-  const [modelType, setModelType] = useState('DFA');
+  const [modelType, setModelType] = useState<MachineType | string>('DFA');
   const [modelName, setModelName] = useState('My New DFA');
-  const [definition, setDefinition] = useState(BOILERPLATES.DFA);
+  const [definition, setDefinition] = useState<MachineDefinition>(BOILERPLATES.DFA);
   const [inputStr, setInputStr] = useState('');
-  const [result, setResult] = useState<any>(null);
+  const [result, setResult] = useState<SimulationResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [viewMode, setViewMode] = useState<'visual' | 'code'>('visual');

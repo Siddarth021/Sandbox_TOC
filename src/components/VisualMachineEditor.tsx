@@ -1,4 +1,5 @@
 'use client';
+import { MachineType, MachineDefinition } from '@/types/computation';
 
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import ReactFlow, { 
@@ -77,7 +78,14 @@ const SelfLoopEdge = ({
 };
 
 // Custom State Node Component
-const StateNode = ({ data, id }: { data: any, id: string }) => {
+interface StateNodeData {
+  isActive: boolean;
+  isAccept: boolean;
+  isStart: boolean;
+  label: string;
+}
+
+const StateNode = ({ data, id }: { data: StateNodeData, id: string }) => {
   return (
     <div 
       className={`relative w-[60px] h-[60px] rounded-full flex items-center justify-center font-bold text-xs border-2 transition-all duration-300
@@ -118,11 +126,14 @@ const nodeTypes = {
   state: StateNode,
 };
 
-interface VisualMachineEditorProps {
+type EditorElement = 
+  | { type: 'node'; id: string; data: StateNodeData }
+  | { type: 'edge'; id: string; label?: string; data?: any };
 
-  type: string;
-  initialDefinition: any;
-  onChange: (definition: any) => void;
+interface VisualMachineEditorProps {
+  type: MachineType | string;
+  initialDefinition: MachineDefinition;
+  onChange: (definition: MachineDefinition) => void;
   activeStates?: string[];
   readOnly?: boolean;
 }
@@ -135,9 +146,9 @@ export default function VisualMachineEditor({
   readOnly = false
 }: VisualMachineEditorProps) {
 
-  const [nodes, setNodes, onNodesChange] = useNodesState([]);
+  const [nodes, setNodes, onNodesChange] = useNodesState<StateNodeData>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
-  const [selectedElement, setSelectedElement] = useState<any>(null);
+  const [selectedElement, setSelectedElement] = useState<EditorElement | null>(null);
 
   // Initialize from JSON
   useEffect(() => {
@@ -159,8 +170,9 @@ export default function VisualMachineEditor({
     const edgeMap = new Map<string, { source: string, target: string, labels: string[], data: any[] }>();
 
     if (type === 'DFA' || type === 'NFA') {
-      for (const [from, transMap] of Object.entries(initialDefinition.transitions || {})) {
-        for (const [symbol, targets] of Object.entries(transMap as any)) {
+      const transitions = initialDefinition.transitions as Record<string, Record<string, string | string[]>>;
+      for (const [from, transMap] of Object.entries(transitions || {})) {
+        for (const [symbol, targets] of Object.entries(transMap)) {
           const targetList = Array.isArray(targets) ? targets : [targets];
           targetList.forEach((to: string) => {
             const key = `${from}-${to}`;
@@ -384,16 +396,16 @@ export default function VisualMachineEditor({
         onConnect={readOnly ? undefined : onConnect}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
-        onSelectionChange={useCallback((params: any) => {
+        onSelectionChange={useCallback((params: { nodes: Node<StateNodeData>[], edges: Edge[] }) => {
           if (params.nodes.length > 0) {
             const node = params.nodes[0];
-            setSelectedElement((prev: any) => 
-               prev?.id === node.id && prev?.type === 'node' ? prev : { type: 'node', ...node }
+            setSelectedElement((prev) => 
+               prev?.id === node.id && prev?.type === 'node' ? prev : { type: 'node', id: node.id, data: node.data }
             );
           } else if (params.edges.length > 0) {
             const edge = params.edges[0];
-            setSelectedElement((prev: any) => 
-               prev?.id === edge.id && prev?.type === 'edge' ? prev : { type: 'edge', ...edge }
+            setSelectedElement((prev) => 
+               prev?.id === edge.id && prev?.type === 'edge' ? prev : { type: 'edge', id: edge.id, label: edge.label?.toString(), data: edge.data }
             );
           } else {
             setSelectedElement(null);

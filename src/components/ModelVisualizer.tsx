@@ -1,4 +1,5 @@
 'use client';
+import { MachineType, MachineDefinition } from '@/types/computation';
 
 import React, { useMemo } from 'react';
 import ReactFlow, { 
@@ -12,8 +13,8 @@ import 'reactflow/dist/style.css';
 import dagre from '@dagrejs/dagre';
 
 interface ModelVisualizerProps {
-  type: string;
-  definition: any;
+  type: MachineType | string;
+  definition: MachineDefinition;
   activeState?: string | null;
   activeStates?: string[];
 }

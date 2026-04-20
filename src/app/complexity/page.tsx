@@ -1,23 +1,27 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useUser } from "@clerk/nextjs";
+import { MachineType, MachineDefinition } from '@/types/computation';
 
 export default function Complexity() {
-  const [models, setModels] = useState<any[]>([]);
+  const { user } = useUser();
+  const [models, setModels] = useState<({ id: number, name: string, type: MachineType, definition: MachineDefinition })[]>([]);
   const [selectedModel, setSelectedModel] = useState<string>('');
   const [inputStr, setInputStr] = useState('');
   const [analysis, setAnalysis] = useState<any>(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    fetch('/api/models')
+    const url = user?.id ? `/api/models?user_id=${user.id}` : '/api/models';
+    fetch(url)
       .then(res => res.json())
       .then(data => {
         const tms = data.filter((m: any) => m.type === 'TM');
         setModels(tms);
         if (tms.length > 0) setSelectedModel(tms[0].id);
       });
-  }, []);
+  }, [user]);
 
   const handleAnalyze = async () => {
     setLoading(true);
@@ -27,7 +31,8 @@ export default function Complexity() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           model_id: selectedModel,
-          input_string: inputStr
+          input_string: inputStr,
+          user_id: user?.id
         })
       });
       const data = await res.json();

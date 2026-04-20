@@ -1,16 +1,17 @@
 'use client';
+import { MachineType, MachineDefinition } from '@/types/computation';
 
 import React, { useState, useEffect } from 'react';
 
 interface FormalTupleEditorProps {
-  type: string;
-  definition: any;
-  onChange: (definition: any) => void;
+  type: MachineType | string;
+  definition: MachineDefinition;
+  onChange: (definition: MachineDefinition) => void;
   onValidationError?: (errors: string[]) => void;
 }
 
 export default function FormalTupleEditor({ type, definition, onChange, onValidationError }: FormalTupleEditorProps) {
-  const [localDef, setLocalDef] = useState(definition);
+  const [localDef, setLocalDef] = useState<MachineDefinition>(definition);
 
   const [errors, setErrors] = useState<string[]>([]);
 
@@ -19,12 +20,12 @@ export default function FormalTupleEditor({ type, definition, onChange, onValida
     validate(definition);
   }, [definition]);
 
-  const validate = (def: any) => {
+  const validate = (def: MachineDefinition) => {
     const errs: string[] = [];
     if (type === 'DFA') {
       const seen = new Set<string>();
       const transitions = Array.isArray(def.transitions) ? def.transitions : 
-                          Object.entries(def.transitions || {}).flatMap(([from, transMap]: any) => 
+                          Object.entries(def.transitions || {}).flatMap(([from, transMap]: [string, any]) => 
                             Object.entries(transMap).map(([symbol, target]) => ({ from, symbol, target }))
                           );
 
@@ -75,7 +76,8 @@ export default function FormalTupleEditor({ type, definition, onChange, onValida
   const getTransitionList = () => {
     if (Array.isArray(localDef.transitions)) return localDef.transitions;
     // Convert object format to edit-friendly list
-    return Object.entries(localDef.transitions || {}).flatMap(([from, transMap]: any) => 
+    const transitions = localDef.transitions as Record<string, Record<string, string | string[]>>;
+    return Object.entries(transitions || {}).flatMap(([from, transMap]) => 
       Object.entries(transMap).map(([symbol, target]) => ({ from, symbol, target }))
     );
   };

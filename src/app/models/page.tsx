@@ -2,12 +2,13 @@
 
 import { useState, useEffect } from 'react';
 import { useUser } from "@clerk/nextjs";
+import { MachineType, MachineDefinition, TransformationResult } from '@/types/computation';
 
 export default function Models() {
   const { user } = useUser();
-  const [models, setModels] = useState<any[]>([]);
-  const [targetType, setTargetType] = useState('');
-  const [conversionResult, setConversionResult] = useState<any>(null);
+  const [models, setModels] = useState<({ id: number, name: string, type: MachineType, definition: MachineDefinition })[]>([]);
+  const [targetType, setTargetType] = useState<string>('');
+  const [conversionResult, setConversionResult] = useState<TransformationResult | null>(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
