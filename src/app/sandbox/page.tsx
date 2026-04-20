@@ -1,5 +1,5 @@
 'use client';
-
+import { useState, useMemo, useEffect } from 'react';
 import VisualMachineEditor from '@/components/VisualMachineEditor';
 import FormalTupleEditor from '@/components/FormalTupleEditor';
 import { useUser } from "@clerk/nextjs";

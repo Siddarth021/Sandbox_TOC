@@ -163,7 +163,7 @@ export default function VisualMachineEditor({
         isAccept: Array.isArray(initialDefinition.accept_states) 
           ? initialDefinition.accept_states.includes(id) 
           : initialDefinition.accept_states === id,
-        isActive: activeStates?.includes(id)
+        isActive: !!activeStates?.includes(id)
       }
     }));
 
@@ -375,7 +375,7 @@ export default function VisualMachineEditor({
     setNodes((nds) => {
       let changed = false;
       const newNodes = nds.map(n => {
-        const isActive = activeStates?.includes(n.id);
+        const isActive = !!activeStates?.includes(n.id);
         if (n.data.isActive !== isActive) {
           changed = true;
           return { ...n, data: { ...n.data, isActive } };
