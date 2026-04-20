@@ -47,11 +47,11 @@ async def global_exception_handler(request: Request, exc: Exception):
         }
     )
 
-@app.get("/api")
+@app.get("/")
 def read_root():
     return {"message": "Welcome to the Universal Computation Sandbox API"}
 
-@app.post("/api/models")
+@app.post("/models")
 def save_model(model_data: Dict[str, Any], db: Session = Depends(get_db)):
     model_id = model_data.get("id")
     user_id = model_data.get("user_id")
@@ -78,7 +78,7 @@ def save_model(model_data: Dict[str, Any], db: Session = Depends(get_db)):
     db.refresh(db_model)
     return db_model
 
-@app.get("/api/models")
+@app.get("/models")
 def list_models(user_id: str = None, db: Session = Depends(get_db)):
     query = db.query(ComputationModel)
     if user_id:
@@ -87,7 +87,7 @@ def list_models(user_id: str = None, db: Session = Depends(get_db)):
 
 from pydantic import ValidationError
 
-@app.post("/api/simulate")
+@app.post("/simulate")
 def simulate(payload: Dict[str, Any], db: Session = Depends(get_db)):
     model_id = payload.get("model_id")
     input_string = payload.get("input_string", "")
@@ -118,7 +118,7 @@ def simulate(payload: Dict[str, Any], db: Session = Depends(get_db)):
     except ValidationError as e:
         raise HTTPException(status_code=400, detail=f"Invalid {m_type} definition: {str(e)}")
 
-@app.post("/api/convert")
+@app.post("/convert")
 def convert(payload: Dict[str, Any], db: Session = Depends(get_db)):
     source_id = payload.get("source_model_id")
     target_type = payload.get("target_type", "").upper()
@@ -145,18 +145,18 @@ def convert(payload: Dict[str, Any], db: Session = Depends(get_db)):
     
     raise HTTPException(status_code=400, detail=f"Conversion from {db_model.type} to {target_type} is not supported.")
 
-@app.post("/api/utm")
+@app.post("/utm")
 def run_utm(payload: Dict[str, Any]):
     machine_def = payload.get("machine_definition")
     input_string = payload.get("input_string", "")
     return UTMEngine.run_utm(TMDefinition(**machine_def), input_string)
 
-@app.post("/api/decidability")
+@app.post("/decidability")
 def analyze_decidability(payload: Dict[str, Any]):
     problem_type = payload.get("problem_type")
     return DecidabilityEngine.analyze(problem_type)
 
-@app.post("/api/complexity")
+@app.post("/complexity")
 def analyze_complexity(payload: Dict[str, Any], db: Session = Depends(get_db)):
     model_id = payload.get("model_id")
     input_string = payload.get("input_string", "")

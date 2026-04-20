@@ -16,7 +16,11 @@ class ComputationModel(Base):
     user_id = Column(String, index=True) # Clerk User ID
 
 # Production Database (Supabase / Vercel Postgres)
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./models.db")
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+if not DATABASE_URL:
+    # Local development fallback only if explicitly intended
+    DATABASE_URL = "sqlite:///./models.db"
 
 # Ensure Postgres URLs from platforms like Heroku/Supabase work with SQLAlchemy 1.4+
 if DATABASE_URL.startswith("postgres://"):
@@ -25,6 +29,9 @@ if DATABASE_URL.startswith("postgres://"):
 engine_args = {}
 if "sqlite" in DATABASE_URL:
     engine_args["connect_args"] = {"check_same_thread": False}
+else:
+    # Force SSL for Supabase/Production Postgres
+    engine_args["connect_args"] = {"sslmode": "require"}
 
 engine = create_engine(DATABASE_URL, **engine_args)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
