@@ -30,5 +30,15 @@ export interface SimulationResult {
 }
 
 export interface TransformationResult {
-  [key: string]: string | number | boolean | object | null;
+  regex?: string;
+  states?: string[];
+  alphabet?: string[];
+  start_state?: string;
+  accept_states?: string[];
+  accept_state?: string;
+  non_terminals?: string[];
+  terminals?: string[];
+  start_symbol?: string;
+  productions?: Record<string, string[]>;
+  [key: string]: any;
 }

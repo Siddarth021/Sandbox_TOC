@@ -93,6 +93,7 @@ function SandboxContent() {
   const [isSaving, setIsSaving] = useState(false);
   const [viewMode, setViewMode] = useState<'visual' | 'code'>('visual');
   const [modelId, setModelId] = useState<string | null>(null);
+  const [complexity, setComplexity] = useState<any>(null);
   
   // Playback state
   const [stepIndex, setStepIndex] = useState(0);
@@ -153,6 +154,7 @@ function SandboxContent() {
     if (hasDFAConflicts) return;
     setLoading(true);
     setResult(null);
+    setComplexity(null);
     setStepIndex(0);
     setIsPlaying(false);
     
@@ -188,6 +190,21 @@ function SandboxContent() {
       });
       const simData = await simRes.json();
       setResult(simData);
+
+      // Analyze complexity if TM
+      if (modelType === 'TM' && simData.accepted !== undefined) {
+         const compRes = await fetch('/api/complexity', {
+           method: 'POST',
+           headers: { 'Content-Type': 'application/json' },
+           body: JSON.stringify({
+             definition: canonicalDefinition,
+             input_string: inputStr,
+             type: 'TM'
+           })
+         });
+         const compData = await compRes.json();
+         setComplexity(compData);
+      }
     } catch (err: unknown) {
       alert("Simulation failed: " + (err instanceof Error ? err.message : String(err)));
     } finally {
@@ -406,6 +423,19 @@ function SandboxContent() {
                       {result.tape && <p>Tape Final State: <span className="text-[#1c1c1c] block mt-1 font-bold truncate">{result.tape}</span></p>}
                     </div>
                   </div>
+
+                  {complexity && (
+                    <div className="pt-6 border-t border-[#f0f0eb] grid grid-cols-2 gap-8">
+                       <div className="p-4 bg-gray-50/50 border border-[#e8e8e1]">
+                          <span className="text-[9px] uppercase tracking-widest text-gray-400 block mb-1">Time Profile</span>
+                          <span className="text-lg font-serif font-bold text-[#c5a028]">{complexity.time_complexity_estimate}</span>
+                       </div>
+                       <div className="p-4 bg-gray-50/50 border border-[#e8e8e1]">
+                          <span className="text-[9px] uppercase tracking-widest text-gray-400 block mb-1">Space Profile</span>
+                          <span className="text-lg font-serif font-bold text-[#c5a028]">{complexity.space_complexity_estimate}</span>
+                       </div>
+                    </div>
+                  )}
                   
                   {result.error && (
                     <div className="p-4 bg-red-50 text-red-800 text-[10px] uppercase tracking-widest border border-red-100">

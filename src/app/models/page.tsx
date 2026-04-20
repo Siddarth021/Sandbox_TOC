@@ -146,7 +146,7 @@ export default function Models() {
                      <div className="space-y-4">
                         <label className="text-[10px] uppercase tracking-widest text-gray-400 block">Identified Regular Expression</label>
                         <div className="text-2xl text-[#1c1c1c] break-all border-l-4 border-[#c5a028] pl-6 py-2 bg-white italic font-light">
-                           {conversionResult.regex}
+                           {String(conversionResult.regex)}
                         </div>
                         <p className="text-[11px] text-gray-500 leading-relaxed italic">
                            Derived via state elimination. This expression represents the formal language accepted by the source automaton.
@@ -164,7 +164,11 @@ export default function Models() {
                                </div>
                                <div className="p-3 bg-white border border-[#f0f0eb]">
                                  <span className="text-gray-400 block mb-1">Accept (F)</span>
-                                 <span className="font-bold text-[#c5a028]">{Array.isArray(conversionResult.accept_states) ? conversionResult.accept_states.join(', ') : conversionResult.accept_state}</span>
+                                 <span className="font-bold text-[#c5a028]">
+                                   {Array.isArray(conversionResult.accept_states) 
+                                     ? conversionResult.accept_states.join(', ') 
+                                     : conversionResult.accept_state || 'None'}
+                                 </span>
                                </div>
                             </div>
                           </div>
@@ -174,7 +178,7 @@ export default function Models() {
                           <div>
                             <label className="text-[9px] uppercase tracking-widest text-gray-400 block mb-2">Grammar Tuple (V, Σ, R, S)</label>
                             <div className="space-y-4">
-                               {Object.entries(conversionResult.productions || {}).map(([nt, rules]: [string, any]) => (
+                               {Object.entries(conversionResult.productions || {}).map(([nt, rules]: [string, string[]]) => (
                                  <div key={nt} className="flex gap-4 items-baseline text-sm border-b border-[#f8f8f2] pb-1">
                                     <span className="font-bold text-[#c5a028] min-w-8">{nt}</span>
                                     <span className="text-gray-400">→</span>
