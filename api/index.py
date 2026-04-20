@@ -11,7 +11,7 @@ from app.engines.complexity_engine import ComplexityEngine
 from typing import Dict, Any, List, Union
 import os
 
-app = FastAPI(title="Universal Computation Sandbox API")
+app = FastAPI(title="Computation Engine")
 
 app.add_middleware(
     CORSMiddleware,
@@ -20,6 +20,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Dependency (only for endpoints that need DB)
 def get_db():
     db = SessionLocal()
     try:
@@ -30,74 +31,89 @@ def get_db():
 from fastapi.responses import JSONResponse
 from starlette.requests import Request
 
-@app.on_event("startup")
-def startup():
-    try:
-        init_db()
-    except Exception as e:
-        print(f"Startup DB Error: {e}")
-
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    import traceback
-    print(traceback.format_exc())
     return JSONResponse(
         status_code=500,
-        content={"detail": f"Internal Engine Error: {str(exc)}"},
+        content={"detail": f"Engine Error: {str(exc)}"},
         headers={"Access-Control-Allow-Origin": "*"}
     )
 
-def canonicalize_transitions(transitions: Union[Dict, List], m_type: str) -> Dict:
-    """Converts Array-based transitions back to Object-based for the engine."""
-    if isinstance(transitions, dict):
-        return transitions
+def canonicalize(dfn: Dict, m_type: str) -> Dict:
+    if not dfn or "transitions" not in dfn: return dfn
+    trans = dfn["transitions"]
+    if isinstance(trans, dict): return dfn
     
     obj = {}
-    if m_type == "PDA":
-        return transitions # PDA is already list-based in schema
-        
-    for t in transitions:
-        f = t.get("from")
-        s = t.get("symbol") or t.get("read")
-        to = t.get("target") or t.get("next")
-        
+    for t in trans:
+        f, s, to = t.get("from"), t.get("symbol") or t.get("read"), t.get("target") or t.get("next")
         if f is None or s is None: continue
-        
         if f not in obj: obj[f] = {}
-        
         if m_type == "NFA":
             if s not in obj[f]: obj[f][s] = []
-            if to not in obj[f][s]: obj[f][s].append(to)
+            obj[f][s].append(to)
         elif m_type == "TM":
             obj[f][s] = { "next": to, "write": t.get("write", s), "move": t.get("move", "R") }
-        else: # DFA
-            obj[f][s] = to
-            
-    return obj
+        else: obj[f][s] = to
+    dfn["transitions"] = obj
+    return dfn
 
 @app.get("/api")
 @app.get("/")
-def read_root():
-    return {"status": "online", "message": "Stateless High-Performance Engine"}
+def health():
+    return {"status": "ready"}
+
+@app.post("/api/convert")
+@app.post("/convert")
+def convert(payload: Dict[str, Any]):
+    target = payload.get("target_type", "").upper()
+    dfn = payload.get("definition")
+    m_type = payload.get("source_type")
+    
+    if not dfn: raise HTTPException(status_code=400, detail="No definition provided")
+    dfn = canonicalize(dfn, m_type)
+    
+    try:
+        if m_type == "NFA" and target == "DFA":
+            return ConversionEngine.nfa_to_dfa(NFADefinition(**dfn)).dict()
+        if m_type == "CFG" and target == "PDA":
+            return ConversionEngine.cfg_to_pda(CFGDefinition(**dfn)).dict()
+        if m_type == "DFA" and target == "REGEX":
+            return {"regex": ConversionEngine.dfa_to_regex(DFADefinition(**dfn))}
+        if m_type == "PDA" and target == "CFG":
+            return ConversionEngine.pda_to_cfg(PDADefinition(**dfn)).dict()
+        raise HTTPException(status_code=400, detail="Conversion not supported")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.post("/api/simulate")
+@app.post("/simulate")
+def simulate(payload: Dict[str, Any]):
+    dfn = payload.get("definition")
+    m_type = payload.get("type")
+    input_str = payload.get("input_string", "")
+    
+    if not dfn: raise HTTPException(status_code=400, detail="No definition")
+    dfn = canonicalize(dfn, m_type)
+    
+    try:
+        if m_type == "DFA": return SimulationEngine.simulate_dfa(DFADefinition(**dfn), input_str)
+        if m_type == "NFA": return SimulationEngine.simulate_nfa(NFADefinition(**dfn), input_str)
+        if m_type == "TM": return SimulationEngine.simulate_tm(TMDefinition(**dfn), input_str)
+        if m_type == "PDA": return SimulationEngine.simulate_pda(PDADefinition(**dfn), input_str)
+        raise HTTPException(status_code=400, detail="Type not supported")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 @app.post("/api/models")
 @app.post("/models")
 def save_model(model_data: Dict[str, Any], db: Session = Depends(get_db)):
     try:
-        model_id = model_data.get("id")
-        user_id = model_data.get("user_id")
-        if model_id and not str(model_id).startswith("model_"):
-            db_model = db.query(ComputationModel).filter(ComputationModel.id == int(model_id)).first()
-            if db_model:
-                db_model.name = model_data.get("name")
-                db_model.definition = model_data.get("definition")
-                db.commit()
-                return db_model
         db_model = ComputationModel(
             name=model_data.get("name"),
             type=model_data.get("type"),
             definition=model_data.get("definition"),
-            user_id=user_id
+            user_id=model_data.get("user_id")
         )
         db.add(db_model)
         db.commit()
@@ -111,98 +127,27 @@ def save_model(model_data: Dict[str, Any], db: Session = Depends(get_db)):
 def list_models(user_id: str = None, db: Session = Depends(get_db)):
     try:
         query = db.query(ComputationModel)
-        if user_id:
-            query = query.filter(ComputationModel.user_id == user_id)
+        if user_id: query = query.filter(ComputationModel.user_id == user_id)
         return query.all()
-    except Exception as e:
-        return []
-
-@app.post("/api/simulate")
-@app.post("/simulate")
-def simulate(payload: Dict[str, Any], db: Session = Depends(get_db)):
-    input_string = payload.get("input_string", "")
-    dfn = payload.get("definition")
-    m_type = payload.get("type")
-    
-    if not dfn or not m_type:
-        model_id = payload.get("model_id")
-        if not model_id: raise HTTPException(status_code=400, detail="Missing definition")
-        db_model = db.query(ComputationModel).filter(ComputationModel.id == int(model_id)).first()
-        if not db_model: raise HTTPException(status_code=404, detail="Not found")
-        m_type, dfn = db_model.type, db_model.definition
-
-    # Standardize format
-    dfn["transitions"] = canonicalize_transitions(dfn.get("transitions", {}), m_type)
-
-    try:
-        if m_type == "DFA": return SimulationEngine.simulate_dfa(DFADefinition(**dfn), input_string)
-        if m_type == "NFA": return SimulationEngine.simulate_nfa(NFADefinition(**dfn), input_string)
-        if m_type == "TM": return SimulationEngine.simulate_tm(TMDefinition(**dfn), input_string)
-        if m_type == "PDA": return SimulationEngine.simulate_pda(PDADefinition(**dfn), input_string)
-        raise HTTPException(status_code=400, detail=f"Type {m_type} not supported")
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-@app.post("/api/convert")
-@app.post("/convert")
-def convert(payload: Dict[str, Any], db: Session = Depends(get_db)):
-    target_type = payload.get("target_type", "").upper()
-    dfn = payload.get("definition")
-    m_type = payload.get("source_type")
-    
-    if not dfn or not m_type:
-        source_id = payload.get("source_model_id")
-        if not source_id: raise HTTPException(status_code=400, detail="Missing definition")
-        db_model = db.query(ComputationModel).filter(ComputationModel.id == int(source_id)).first()
-        if not db_model: raise HTTPException(status_code=404, detail="Not found")
-        m_type, dfn = db_model.type, db_model.definition
-    
-    # Standardize format before engine call
-    dfn["transitions"] = canonicalize_transitions(dfn.get("transitions", {}), m_type)
-
-    try:
-        if m_type == "NFA" and target_type == "DFA":
-            return ConversionEngine.nfa_to_dfa(NFADefinition(**dfn)).dict()
-        if m_type == "CFG" and target_type == "PDA":
-            return ConversionEngine.cfg_to_pda(CFGDefinition(**dfn)).dict()
-        if m_type == "DFA" and target_type == "REGEX":
-            return {"regex": ConversionEngine.dfa_to_regex(DFADefinition(**dfn))}
-        if m_type == "PDA" and target_type == "CFG":
-            return ConversionEngine.pda_to_cfg(PDADefinition(**dfn)).dict()
-        raise HTTPException(status_code=400, detail=f"Conversion {m_type}->{target_type} not supported")
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    except: return []
 
 @app.post("/api/utm")
 @app.post("/utm")
-def run_utm(payload: Dict[str, Any]):
-    try:
-        dfn = payload.get("machine_definition")
-        dfn["transitions"] = canonicalize_transitions(dfn.get("transitions", {}), "TM")
-        return UTMEngine.run_utm(TMDefinition(**dfn), payload.get("input_string", ""))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+def utm(payload: Dict[str, Any]):
+    dfn = canonicalize(payload.get("machine_definition"), "TM")
+    return UTMEngine.run_utm(TMDefinition(**dfn), payload.get("input_string", ""))
 
 @app.post("/api/decidability")
 @app.post("/decidability")
-def analyze_decidability(payload: Dict[str, Any]):
+def decidability(payload: Dict[str, Any]):
     return DecidabilityEngine.analyze(payload.get("problem_type"))
 
 @app.post("/api/complexity")
 @app.post("/complexity")
-def analyze_complexity(payload: Dict[str, Any], db: Session = Depends(get_db)):
-    try:
-        dfn = payload.get("definition")
-        m_type = payload.get("type")
-        if not dfn:
-            db_model = db.query(ComputationModel).filter(ComputationModel.id == int(payload.get("model_id"))).first()
-            m_type, dfn = db_model.type, db_model.definition
-        
-        dfn["transitions"] = canonicalize_transitions(dfn.get("transitions", {}), m_type)
-        res = SimulationEngine.simulate_tm(TMDefinition(**dfn), payload.get("input_string", ""))
-        return ComplexityEngine.analyze_complexity(res["steps"], len(res.get("tape", "")), len(payload.get("input_string", "")))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+def complexity(payload: Dict[str, Any]):
+    dfn = canonicalize(payload.get("definition"), "TM")
+    res = SimulationEngine.simulate_tm(TMDefinition(**dfn), payload.get("input_string", ""))
+    return ComplexityEngine.analyze_complexity(res["steps"], len(res.get("tape", "")), len(payload.get("input_string", "")))
 
 if __name__ == "__main__":
     import uvicorn
