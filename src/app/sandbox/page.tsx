@@ -1,5 +1,6 @@
 'use client';
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, Suspense } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import VisualMachineEditor from '@/components/VisualMachineEditor';
 import FormalTupleEditor from '@/components/FormalTupleEditor';
 import { useUser } from "@clerk/nextjs";
@@ -87,7 +88,31 @@ export default function Sandbox() {
   // Playback state
   const [stepIndex, setStepIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [validationErrors, setValidationErrors] = useState<string[]>([]);
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const urlId = searchParams.get('id');
+
+  // Initial load from URL ID
+  useEffect(() => {
+    if (urlId && user) {
+      const fetchModel = async () => {
+        try {
+          const resp = await fetch(`/api/models?user_id=${user.id}`);
+          const models = await resp.json();
+          const current = models.find((m: any) => m.id === urlId);
+          if (current) {
+            setModelId(current.id);
+            setModelName(current.name);
+            setModelType(current.type);
+            setDefinition(current.definition);
+          }
+        } catch (err) {
+          console.error("Failed to load model from URL:", err);
+        }
+      };
+      fetchModel();
+    }
+  }, [urlId, user]);
 
   const handleModelTypeChange = (type: string) => {
     setModelType(type);
@@ -183,7 +208,10 @@ export default function Sandbox() {
         })
       });
       const data = await resp.json();
-      if (data.id) setModelId(data.id);
+      if (data.id) {
+        setModelId(data.id);
+        router.push(`/sandbox?id=${data.id}`);
+      }
       alert("Model saved successfully!");
     } catch (err) {
       alert("Failed to save: " + err);
