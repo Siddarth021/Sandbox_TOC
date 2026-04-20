@@ -61,7 +61,7 @@ def save_model(model_data: Dict[str, Any], db: Session = Depends(get_db)):
     user_id = model_data.get("user_id")
     
     if model_id:
-        db_model = db.query(ComputationModel).filter(ComputationModel.id == model_id).first()
+        db_model = db.query(ComputationModel).filter(ComputationModel.id == int(model_id)).first()
         if db_model:
             if db_model.user_id and db_model.user_id != user_id:
                 raise HTTPException(status_code=403, detail="Unauthorized")
@@ -98,7 +98,7 @@ def simulate(payload: Dict[str, Any], db: Session = Depends(get_db)):
     
     user_id = payload.get("user_id")
     
-    db_model = db.query(ComputationModel).filter(ComputationModel.id == model_id).first()
+    db_model = db.query(ComputationModel).filter(ComputationModel.id == int(model_id)).first()
     if not db_model:
         raise HTTPException(status_code=404, detail="Model not found")
     
@@ -127,7 +127,7 @@ def convert(payload: Dict[str, Any], db: Session = Depends(get_db)):
     source_id = payload.get("source_model_id")
     target_type = payload.get("target_type", "").upper()
     
-    db_model = db.query(ComputationModel).filter(ComputationModel.id == source_id).first()
+    db_model = db.query(ComputationModel).filter(ComputationModel.id == int(source_id)).first()
     if not db_model:
         raise HTTPException(status_code=404, detail="Model not found")
     
@@ -168,7 +168,7 @@ def analyze_complexity(payload: Dict[str, Any], db: Session = Depends(get_db)):
     user_id = payload.get("user_id")
     
     # Run simulation first to get steps/space
-    db_model = db.query(ComputationModel).filter(ComputationModel.id == model_id).first()
+    db_model = db.query(ComputationModel).filter(ComputationModel.id == int(model_id)).first()
     if not db_model or db_model.type != "TM":
         raise HTTPException(status_code=400, detail="Complexity analysis currently optimized for TM")
 

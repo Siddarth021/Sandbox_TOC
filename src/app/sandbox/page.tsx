@@ -109,7 +109,7 @@ function SandboxContent() {
         try {
           const resp = await fetch(`/api/models?user_id=${user.id}`);
           const models = await resp.json();
-          const current = models.find((m: any) => m.id === urlId);
+          const current = models.find((m: any) => String(m.id) === urlId);
           if (current) {
             setModelId(current.id);
             setModelName(current.name);
@@ -124,10 +124,10 @@ function SandboxContent() {
     }
   }, [urlId, user]);
 
-  const handleModelTypeChange = (type: string) => {
-    setModelType(type);
-    setDefinition(BOILERPLATES[type]);
-    setModelName(`My New ${type}`);
+  const handleModelTypeChange = (newType: string) => {
+    setModelType(newType);
+    setDefinition(BOILERPLATES[newType]);
+    setModelName(`My New ${newType}`);
     setResult(null);
   };
 
@@ -196,8 +196,8 @@ function SandboxContent() {
       });
       const simData = await simRes.json();
       setResult(simData);
-    } catch (err) {
-      alert("Simulation failed: " + err);
+    } catch (err: unknown) {
+      alert("Simulation failed: " + (err instanceof Error ? err.message : String(err)));
     } finally {
       setLoading(false);
     }
@@ -218,13 +218,14 @@ function SandboxContent() {
         })
       });
       const data = await resp.json();
+      if (!resp.ok) throw new Error(data.detail || "Server Error");
       if (data.id) {
         setModelId(data.id);
         router.push(`/sandbox?id=${data.id}`);
       }
       alert("Model saved successfully!");
-    } catch (err) {
-      alert("Failed to save: " + err);
+    } catch (err: any) {
+      alert("Failed to save: " + err.message);
     } finally {
       setIsSaving(false);
     }
