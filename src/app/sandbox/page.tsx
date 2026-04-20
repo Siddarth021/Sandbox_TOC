@@ -74,6 +74,14 @@ const BOILERPLATES: Record<string, any> = {
 };
 
 export default function Sandbox() {
+  return (
+    <Suspense fallback={<div>Loading Lab...</div>}>
+      <SandboxContent />
+    </Suspense>
+  );
+}
+
+function SandboxContent() {
   const { user } = useUser();
   const [modelType, setModelType] = useState<MachineType | string>('DFA');
   const [modelName, setModelName] = useState('My New DFA');
@@ -88,6 +96,8 @@ export default function Sandbox() {
   // Playback state
   const [stepIndex, setStepIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
+  
   const searchParams = useSearchParams();
   const router = useRouter();
   const urlId = searchParams.get('id');
