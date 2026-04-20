@@ -35,8 +35,8 @@ const SmartEdge = ({
   const offset = Math.min(30, len / 4); 
   
   // Perpendicular vector for the curve control point
-  const nx = -dy / len;
-  const ny = dx / len;
+  const nx = dy / len;
+  const ny = -dx / len;
   
   const cx = midX + nx * offset;
   const cy = midY + ny * offset;

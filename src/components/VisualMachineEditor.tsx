@@ -99,8 +99,8 @@ const SmartEdge = ({
   const offset = Math.min(40, len / 3); 
   
   // Perpendicular vector for the curve control point
-  const nx = -dy / len;
-  const ny = dx / len;
+  const nx = dy / len;
+  const ny = -dx / len;
   
   const cx = midX + nx * offset;
   const cy = midY + ny * offset;
@@ -161,15 +161,18 @@ const StateNode = ({ data, id }: { data: StateNodeData, id: string }) => {
       )}
       <div className="text-zinc-800">{data.label}</div>
       
-      {/* Universal handles for automatic routing */}
-      <Handle type="target" position={Position.Top} style={{ opacity: 0 }} />
-      <Handle type="source" position={Position.Top} style={{ opacity: 0 }} />
-      <Handle type="target" position={Position.Bottom} style={{ opacity: 0 }} />
-      <Handle type="source" position={Position.Bottom} style={{ opacity: 0 }} />
-      <Handle type="target" position={Position.Left} style={{ opacity: 0 }} />
-      <Handle type="source" position={Position.Left} style={{ opacity: 0 }} />
-      <Handle type="target" position={Position.Right} style={{ opacity: 0 }} />
-      <Handle type="source" position={Position.Right} style={{ opacity: 0 }} />
+      {/* Precision Handles for collision-free routing */}
+      <Handle type="target" position={Position.Top} id="top" style={{ opacity: 0 }} />
+      <Handle type="source" position={Position.Top} id="top" style={{ opacity: 0 }} />
+      
+      <Handle type="target" position={Position.Bottom} id="bottom" style={{ opacity: 0 }} />
+      <Handle type="source" position={Position.Bottom} id="bottom" style={{ opacity: 0 }} />
+      
+      <Handle type="target" position={Position.Left} id="left" style={{ opacity: 0 }} />
+      <Handle type="source" position={Position.Left} id="left" style={{ opacity: 0 }} />
+      
+      <Handle type="target" position={Position.Right} id="right" style={{ opacity: 0 }} />
+      <Handle type="source" position={Position.Right} id="right" style={{ opacity: 0 }} />
     </div>
   );
 };
@@ -269,10 +272,16 @@ export default function VisualMachineEditor({
 
     const initialEdges: Edge[] = Array.from(edgeMap.values()).flatMap((e, idx) => {
       const isSelfLoop = e.source === e.target;
+      // Heuristic for separating bi-directional arrows: Forward vs Backward
+      const isForward = e.source.localeCompare(e.target) < 0;
+
       return [{
         id: `${e.source}-${e.target}-${idx}`,
         source: e.source,
         target: e.target,
+        // Physically separate types to prevent arrowhead collision
+        sourceHandle: isSelfLoop ? 'top' : (isForward ? 'right' : 'bottom'),
+        targetHandle: isSelfLoop ? 'top' : (isForward ? 'left' : 'bottom'),
         label: e.labels.join(', '),
         markerEnd: { type: MarkerType.ArrowClosed, color: '#c5a028' },
         style: { stroke: '#c5a028', strokeWidth: 2, zIndex: 10 },
