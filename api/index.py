@@ -52,12 +52,26 @@ def read_root():
     return {"message": "Welcome to the Universal Computation Sandbox API"}
 
 @app.post("/models")
-def create_model(model_data: Dict[str, Any], db: Session = Depends(get_db)):
+def save_model(model_data: Dict[str, Any], db: Session = Depends(get_db)):
+    model_id = model_data.get("id")
+    user_id = model_data.get("user_id")
+    
+    if model_id:
+        db_model = db.query(ComputationModel).filter(ComputationModel.id == model_id).first()
+        if db_model:
+            if db_model.user_id and db_model.user_id != user_id:
+                raise HTTPException(status_code=403, detail="Unauthorized")
+            db_model.name = model_data.get("name")
+            db_model.definition = model_data.get("definition")
+            db.commit()
+            db.refresh(db_model)
+            return db_model
+
     db_model = ComputationModel(
         name=model_data.get("name"),
         type=model_data.get("type"),
         definition=model_data.get("definition"),
-        user_id=model_data.get("user_id")
+        user_id=user_id
     )
     db.add(db_model)
     db.commit()

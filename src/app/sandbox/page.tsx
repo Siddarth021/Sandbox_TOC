@@ -82,6 +82,7 @@ export default function Sandbox() {
   const [loading, setLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [viewMode, setViewMode] = useState<'visual' | 'code'>('visual');
+  const [modelId, setModelId] = useState<string | null>(null);
   
   // Playback state
   const [stepIndex, setStepIndex] = useState(0);
@@ -108,7 +109,21 @@ export default function Sandbox() {
     return () => clearTimeout(timer);
   }, [isPlaying, stepIndex, result]);
 
+  // DFA validation
+  const hasDFAConflicts = useMemo(() => {
+    if (type !== 'DFA') return false;
+    const seen = new Set<string>();
+    const transitions = Array.isArray(definition.transitions) ? definition.transitions : [];
+    for (const t of transitions) {
+      const key = `${t.from}-${t.symbol}`;
+      if (seen.has(key)) return true;
+      seen.add(key);
+    }
+    return false;
+  }, [definition.transitions, type]);
+
   const handleSimulate = async () => {
+    if (hasDFAConflicts) return;
     setLoading(true);
     setResult(null);
     setStepIndex(0);
@@ -149,16 +164,19 @@ export default function Sandbox() {
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      await fetch('/api/models', {
+      const resp = await fetch('/api/models', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          id: modelId,
           name: modelName,
           type: modelType,
           definition: definition,
           user_id: user?.id
         })
       });
+      const data = await resp.json();
+      if (data.id) setModelId(data.id);
       alert("Model saved successfully!");
     } catch (err) {
       alert("Failed to save: " + err);

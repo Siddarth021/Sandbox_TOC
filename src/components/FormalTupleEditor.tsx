@@ -125,11 +125,11 @@ export default function FormalTupleEditor({ type, definition, onChange, onValida
       <div className="space-y-4">
         {list.map((t: any, idx: number) => {
           const key = `${t.from}-${t.symbol}`;
-          const isInvalid = type === 'DFA' && seen.has(key);
-          seen.add(key);
+          // Conflict checking for visual indication
+          const isConflict = type === 'DFA' && list.findIndex((row: any) => row.from === t.from && row.symbol === t.symbol) !== idx;
 
           return (
-            <div key={idx} className={`grid grid-cols-4 gap-4 items-center bg-[#fdfdfc] border p-4 transition-all ${isInvalid ? 'border-red-200 bg-red-50/30' : 'border-[#e8e8e1]'}`}>
+            <div key={idx} className={`grid grid-cols-4 gap-4 items-center bg-[#fdfdfc] border p-4 transition-all ${isConflict ? 'border-red-400 bg-red-50' : 'border-[#e8e8e1]'}`}>
               <select 
                 value={t.from} 
                 onChange={(e) => updateTransitionRow(idx, { from: e.target.value })}
@@ -166,7 +166,7 @@ export default function FormalTupleEditor({ type, definition, onChange, onValida
 
   const renderTMTransitions = () => (
     <div className="space-y-4">
-       {Object.entries(localDef.transitions || {}).map(([from, transMap]: [string, any]) => (
+       {Object.entries(localDef.transitions || {}).flatMap(([from, transMap]: [string, any]) => 
         Object.entries(transMap).map(([read, action]: [string, any]) => (
           <div key={`${from}-${read}`} className="grid grid-cols-6 gap-2 items-center bg-[#fdfdfc] border border-[#e8e8e1] p-4">
             <select value={from} onChange={(e) => {/* Swap keys logic */}} className="input-field text-[10px]">
@@ -184,7 +184,7 @@ export default function FormalTupleEditor({ type, definition, onChange, onValida
             </select>
           </div>
         ))
-      ))}
+      }
     </div>
   );
 

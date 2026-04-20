@@ -33,8 +33,8 @@ const SelfLoopEdge = ({
   markerEnd,
   label,
 }: EdgeProps) => {
-  const loopWidth = 25;
-  const loopHeight = 35;
+  const loopWidth = 40;
+  const loopHeight = 60;
   
   // High-fidelity cubic bezier for a professional mathematical loop sitting ON the node
   const edgePath = `M ${sourceX} ${sourceY} 
@@ -44,7 +44,7 @@ const SelfLoopEdge = ({
 
   // apex of the loop for the label
   const labelX = sourceX;
-  const labelY = sourceY - loopHeight + 5;
+  const labelY = sourceY - loopHeight - 10;
 
   return (
     <>
