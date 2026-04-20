@@ -1,15 +1,32 @@
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-from app.models.db import SessionLocal, init_db, ComputationModel
-from app.schemas.models import DFADefinition, NFADefinition, TMDefinition, PDADefinition, CFGDefinition
-from app.engines.simulation_engine import SimulationEngine
-from app.engines.conversion_engine import ConversionEngine
-from app.engines.utm_engine import UTMEngine
-from app.engines.decidability_engine import DecidabilityEngine
-from app.engines.complexity_engine import ComplexityEngine
-from typing import Dict, Any, List, Union
+import sys
 import os
+
+# Crucial for Vercel: ensure the 'api' directory is in the python path
+sys.path.append(os.path.join(os.path.dirname(__file__), "."))
+
+# Now we can import from app.models as if it were in the path
+try:
+    from app.models.db import SessionLocal, init_db, ComputationModel
+    from app.schemas.models import DFADefinition, NFADefinition, TMDefinition, PDADefinition, CFGDefinition
+    from app.engines.simulation_engine import SimulationEngine
+    from app.engines.conversion_engine import ConversionEngine
+    from app.engines.utm_engine import UTMEngine
+    from app.engines.decidability_engine import DecidabilityEngine
+    from app.engines.complexity_engine import ComplexityEngine
+except ImportError:
+    # Fallback for different CWD environments
+    from api.app.models.db import SessionLocal, init_db, ComputationModel
+    from api.app.schemas.models import DFADefinition, NFADefinition, TMDefinition, PDADefinition, CFGDefinition
+    from api.app.engines.simulation_engine import SimulationEngine
+    from api.app.engines.conversion_engine import ConversionEngine
+    from api.app.engines.utm_engine import UTMEngine
+    from api.app.engines.decidability_engine import DecidabilityEngine
+    from api.app.engines.complexity_engine import ComplexityEngine
+
+from typing import Dict, Any, List, Union
 
 app = FastAPI(title="Computation Engine")
 
@@ -20,7 +37,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Dependency (only for endpoints that need DB)
 def get_db():
     db = SessionLocal()
     try:
@@ -33,9 +49,14 @@ from starlette.requests import Request
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
+    import traceback
+    err_type = type(exc).__name__
+    err_msg = str(exc)
+    print(f"Error {err_type}: {err_msg}")
+    print(traceback.format_exc())
     return JSONResponse(
         status_code=500,
-        content={"detail": f"Engine Error: {str(exc)}"},
+        content={"detail": f"Engine Crash [{err_type}]: {err_msg}"},
         headers={"Access-Control-Allow-Origin": "*"}
     )
 
@@ -61,29 +82,32 @@ def canonicalize(dfn: Dict, m_type: str) -> Dict:
 @app.get("/api")
 @app.get("/")
 def health():
-    return {"status": "ready"}
+    return {"status": "ready", "python_version": sys.version}
 
 @app.post("/api/convert")
 @app.post("/convert")
 def convert(payload: Dict[str, Any]):
-    target = payload.get("target_type", "").upper()
-    dfn = payload.get("definition")
-    m_type = payload.get("source_type")
-    
-    if not dfn: raise HTTPException(status_code=400, detail="No definition provided")
-    dfn = canonicalize(dfn, m_type)
-    
     try:
+        target = payload.get("target_type", "").upper()
+        dfn = payload.get("definition")
+        m_type = payload.get("source_type")
+        
+        if not dfn: raise HTTPException(status_code=400, detail="No definition provided")
+        dfn = canonicalize(dfn, m_type)
+        
         if m_type == "NFA" and target == "DFA":
             return ConversionEngine.nfa_to_dfa(NFADefinition(**dfn)).dict()
         if m_type == "CFG" and target == "PDA":
             return ConversionEngine.cfg_to_pda(CFGDefinition(**dfn)).dict()
         if m_type == "DFA" and target == "REGEX":
-            return {"regex": ConversionEngine.dfa_to_regex(DFADefinition(**dfn))}
+            res = ConversionEngine.dfa_to_regex(DFADefinition(**dfn))
+            return {"regex": res}
         if m_type == "PDA" and target == "CFG":
             return ConversionEngine.pda_to_cfg(PDADefinition(**dfn)).dict()
         raise HTTPException(status_code=400, detail="Conversion not supported")
     except Exception as e:
+        import traceback
+        print(traceback.format_exc())
         raise HTTPException(status_code=400, detail=str(e))
 
 @app.post("/api/simulate")
@@ -105,23 +129,6 @@ def simulate(payload: Dict[str, Any]):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-@app.post("/api/models")
-@app.post("/models")
-def save_model(model_data: Dict[str, Any], db: Session = Depends(get_db)):
-    try:
-        db_model = ComputationModel(
-            name=model_data.get("name"),
-            type=model_data.get("type"),
-            definition=model_data.get("definition"),
-            user_id=model_data.get("user_id")
-        )
-        db.add(db_model)
-        db.commit()
-        db.refresh(db_model)
-        return db_model
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
 @app.get("/api/models")
 @app.get("/models")
 def list_models(user_id: str = None, db: Session = Depends(get_db)):
@@ -136,18 +143,6 @@ def list_models(user_id: str = None, db: Session = Depends(get_db)):
 def utm(payload: Dict[str, Any]):
     dfn = canonicalize(payload.get("machine_definition"), "TM")
     return UTMEngine.run_utm(TMDefinition(**dfn), payload.get("input_string", ""))
-
-@app.post("/api/decidability")
-@app.post("/decidability")
-def decidability(payload: Dict[str, Any]):
-    return DecidabilityEngine.analyze(payload.get("problem_type"))
-
-@app.post("/api/complexity")
-@app.post("/complexity")
-def complexity(payload: Dict[str, Any]):
-    dfn = canonicalize(payload.get("definition"), "TM")
-    res = SimulationEngine.simulate_tm(TMDefinition(**dfn), payload.get("input_string", ""))
-    return ComplexityEngine.analyze_complexity(res["steps"], len(res.get("tape", "")), len(payload.get("input_string", "")))
 
 if __name__ == "__main__":
     import uvicorn

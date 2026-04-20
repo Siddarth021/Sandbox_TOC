@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Dict, List, Set, Union, Optional
+from typing import Dict, List, Set, Union, Optional, Any
 
 class DFADefinition(BaseModel):
     states: List[str]
@@ -22,7 +22,7 @@ class PDADefinition(BaseModel):
     start_state: str
     start_stack_symbol: str
     accept_states: List[str]
-    transitions: List[Dict]  # List of {from_state, input_symbol, stack_pop, to_state, stack_push}
+    transitions: List[Dict[str, Any]]  # List of {from_state, input_symbol, stack_pop, to_state, stack_push}
 
 class TMDefinition(BaseModel):
     states: List[str]
