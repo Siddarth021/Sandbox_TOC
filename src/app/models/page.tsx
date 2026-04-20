@@ -10,6 +10,7 @@ export default function Models() {
   const [targetType, setTargetType] = useState<string>('');
   const [conversionResult, setConversionResult] = useState<TransformationResult | null>(null);
   const [loading, setLoading] = useState(false);
+  const [viewMode, setViewMode] = useState<'analysis' | 'json'>('analysis');
 
   // Load from LocalStorage
   useEffect(() => {
@@ -107,16 +108,90 @@ export default function Models() {
         </div>
 
         <div className="space-y-8">
-          <h3 className="text-lg font-serif font-semibold text-[#1c1c1c] border-b border-[#e8e8e1] pb-4">Conversion Output</h3>
+          <div className="flex items-center justify-between border-b border-[#e8e8e1] pb-4">
+            <h3 className="text-lg font-serif font-semibold text-[#1c1c1c]">Derivation Insight</h3>
+            {conversionResult && (
+              <div className="flex bg-gray-50 border border-[#e8e8e1] p-0.5">
+                <button 
+                  onClick={() => setViewMode('analysis')}
+                  className={`px-3 py-0.5 text-[9px] uppercase tracking-widest font-bold transition-all ${viewMode === 'analysis' ? 'bg-[#c5a028] text-white' : 'text-gray-400'}`}
+                >
+                  Analysis
+                </button>
+                <button 
+                  onClick={() => setViewMode('json')}
+                  className={`px-3 py-0.5 text-[9px] uppercase tracking-widest font-bold transition-all ${viewMode === 'json' ? 'bg-[#c5a028] text-white' : 'text-gray-400'}`}
+                >
+                  Raw JSON
+                </button>
+              </div>
+            )}
+          </div>
+
           {conversionResult ? (
-            <div className="bg-[#fdfdfc] border border-[#e8e8e1] p-10 overflow-auto max-h-[600px] animate-in slide-in-from-bottom-4 duration-500">
+            <div className="bg-[#fdfdfc] border border-[#e8e8e1] p-10 min-h-[400px] animate-in slide-in-from-bottom-4 duration-500 overflow-auto">
               <div className="flex items-center justify-between mb-8 pb-4 border-b border-[#e8e8e1]">
-                <span className="text-[10px] font-bold tracking-[0.3em] text-[#c5a028] uppercase">Derived Definition</span>
+                <span className="text-[10px] font-bold tracking-[0.3em] text-[#c5a028] uppercase">Formal Result</span>
                 <button onClick={() => setConversionResult(null)} className="text-[10px] uppercase tracking-widest text-gray-300 hover:text-red-400 transition-colors">Dismiss</button>
               </div>
-              <pre className="text-[11px] text-gray-600 font-mono whitespace-pre-wrap leading-relaxed">
-                {JSON.stringify(conversionResult, null, 2)}
-              </pre>
+
+              {viewMode === 'json' ? (
+                <pre className="text-[11px] text-gray-600 font-mono whitespace-pre-wrap leading-relaxed">
+                  {JSON.stringify(conversionResult, null, 2)}
+                </pre>
+              ) : (
+                <div className="space-y-8 font-serif">
+                   {/* Targeted Formatting for Written Analysis */}
+                   {conversionResult.regex ? (
+                     <div className="space-y-4">
+                        <label className="text-[10px] uppercase tracking-widest text-gray-400 block">Identified Regular Expression</label>
+                        <div className="text-2xl text-[#1c1c1c] break-all border-l-4 border-[#c5a028] pl-6 py-2 bg-white italic font-light">
+                           {conversionResult.regex}
+                        </div>
+                        <p className="text-[11px] text-gray-500 leading-relaxed italic">
+                           Derived via state elimination. This expression represents the formal language accepted by the source automaton.
+                        </p>
+                     </div>
+                   ) : (
+                     <div className="space-y-6">
+                        {conversionResult.states && (
+                          <div>
+                            <label className="text-[9px] uppercase tracking-widest text-gray-400 block mb-2">Automaton Tuple (K, Σ, δ, q₀, F)</label>
+                            <div className="grid grid-cols-2 gap-4 text-xs">
+                               <div className="p-3 bg-white border border-[#f0f0eb]">
+                                 <span className="text-gray-400 block mb-1">States (K)</span>
+                                 <span className="font-bold">{conversionResult.states.join(', ')}</span>
+                               </div>
+                               <div className="p-3 bg-white border border-[#f0f0eb]">
+                                 <span className="text-gray-400 block mb-1">Accept (F)</span>
+                                 <span className="font-bold text-[#c5a028]">{Array.isArray(conversionResult.accept_states) ? conversionResult.accept_states.join(', ') : conversionResult.accept_state}</span>
+                               </div>
+                            </div>
+                          </div>
+                        )}
+                        
+                        {conversionResult.non_terminals && (
+                          <div>
+                            <label className="text-[9px] uppercase tracking-widest text-gray-400 block mb-2">Grammar Tuple (V, Σ, R, S)</label>
+                            <div className="space-y-4">
+                               {Object.entries(conversionResult.productions || {}).map(([nt, rules]: [string, any]) => (
+                                 <div key={nt} className="flex gap-4 items-baseline text-sm border-b border-[#f8f8f2] pb-1">
+                                    <span className="font-bold text-[#c5a028] min-w-8">{nt}</span>
+                                    <span className="text-gray-400">→</span>
+                                    <span className="font-medium text-gray-800 italic">{(rules as string[]).join(' | ')}</span>
+                                 </div>
+                               ))}
+                            </div>
+                          </div>
+                        )}
+
+                        <p className="text-[10px] uppercase tracking-widest text-gray-400 text-center pt-8 italic">
+                          See RAW JSON for full transition delta mapping
+                        </p>
+                     </div>
+                   )}
+                </div>
+              )}
             </div>
           ) : (
             <div className="h-64 flex flex-col items-center justify-center border border-dashed border-[#e8e8e1] p-12 text-center opacity-40">
