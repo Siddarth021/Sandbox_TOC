@@ -1,8 +1,9 @@
 'use client';
 import Link from 'next/link';
-import { SignedIn, SignedOut, SignInButton, UserButton } from "@clerk/nextjs";
+import { useUser, UserButton, SignInButton } from "@clerk/nextjs";
 
 export default function Sidebar() {
+  const { isSignedIn, isLoaded } = useUser();
   const links = [
     { name: 'Home', href: '/' },
     { name: 'Sandbox', href: '/sandbox' },
@@ -29,19 +30,19 @@ export default function Sidebar() {
         ))}
       </nav>
       <div className="mt-8 pt-8 border-t border-[#e8e8e1] space-y-4">
-        <SignedIn>
+        {isLoaded && isSignedIn && (
           <div className="flex items-center gap-3">
-            <UserButton afterSignOutUrl="/"/>
+            <UserButton />
             <span className="text-[10px] uppercase tracking-widest font-bold text-[#c5a028]">Profile Settings</span>
           </div>
-        </SignedIn>
-        <SignedOut>
+        )}
+        {isLoaded && !isSignedIn && (
           <SignInButton mode="modal">
             <button className="text-[10px] bg-[#c5a028] text-white w-full py-2 font-bold uppercase tracking-widest hover:bg-[#1c1c1c] transition-all">
               Sign In to Lab
             </button>
           </SignInButton>
-        </SignedOut>
+        )}
       </div>
 
       <div className="text-[10px] uppercase tracking-widest text-gray-400 mt-8">
